@@ -1,0 +1,25 @@
+<div class="max-w-md mx-auto">
+  <h2 class="text-2xl font-bold mb-6">Create Match</h2>
+
+  <.form :let={f} for={@changeset} action={~p"/matches"} as={:match}>
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-300 mb-1">Match Name</label>
+      <input type="text" name={f[:name].name} id={f[:name].id}
+             value={f[:name].value || ""}
+             class="block w-full rounded-md bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 text-sm"
+             placeholder="e.g. Friday Night Dark Pool"
+             required />
+      <%= for {msg, _} <- Keyword.get_values(f.errors, :name) do %>
+        <p class="mt-1 text-sm text-red-400"><%= msg %></p>
+      <% end %>
+    </div>
+
+    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2 rounded-lg text-white font-semibold">
+      Create Match
+    </button>
+  </.form>
+
+  <p class="mt-4 text-center text-sm text-gray-400">
+    <a href={~p"/lobby"} class="text-emerald-400 hover:underline">Back to Lobby</a>
+  </p>
+</div>

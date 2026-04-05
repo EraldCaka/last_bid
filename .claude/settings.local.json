@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(elixir --version)",
+      "Bash(mix --version)",
+      "Bash(mix deps.get)",
+      "Bash(mix compile:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(grep -v \"^\\\\s*$\")",
+      "Bash(mix test:*)",
+      "Bash(psql --version)",
+      "Bash(psql -c \"SELECT current_user\")",
+      "Bash(psql postgres:*)",
+      "Bash(PGUSER=eraldcaka mix:*)",
+      "Bash(mix setup:*)",
+      "Bash(psql -h localhost -U postgres -c \"SELECT current_user\")",
+      "Bash(docker compose:*)",
+      "Bash(timeout 8 mix phx.server)",
+      "Bash(mix phx.server)",
+      "Bash(kill %1)",
+      "Bash(wait %1)"
+    ]
+  }
+}

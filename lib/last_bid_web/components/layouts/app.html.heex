@@ -1,0 +1,31 @@
+<header class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+  <a href="/" class="text-xl font-bold text-emerald-400 tracking-tight">Dark Pool</a>
+  <nav class="flex items-center gap-4 text-sm">
+    <%= if @current_user do %>
+      <span class="text-gray-400"><%= @current_user.username %></span>
+      <a href="/lobby" class="text-gray-300 hover:text-white">Lobby</a>
+      <form action="/users/logout" method="post" class="inline">
+        <input type="hidden" name="_method" value="delete" />
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <button type="submit" class="text-gray-400 hover:text-white">Log out</button>
+      </form>
+    <% else %>
+      <a href="/users/login" class="text-gray-300 hover:text-white">Log in</a>
+      <a href="/users/register" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1 rounded text-white">Register</a>
+    <% end %>
+  </nav>
+</header>
+
+<main class="container mx-auto px-4 py-8 max-w-4xl">
+  <%= if Phoenix.Flash.get(@flash, :info) do %>
+    <div class="mb-4 p-3 bg-emerald-900 border border-emerald-700 rounded text-emerald-200">
+      <%= Phoenix.Flash.get(@flash, :info) %>
+    </div>
+  <% end %>
+  <%= if Phoenix.Flash.get(@flash, :error) do %>
+    <div class="mb-4 p-3 bg-red-900 border border-red-700 rounded text-red-200">
+      <%= Phoenix.Flash.get(@flash, :error) %>
+    </div>
+  <% end %>
+  <%= @inner_content %>
+</main>

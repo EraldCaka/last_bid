@@ -1,0 +1,78 @@
+<div id="match-app" data-match-id={@match.id} data-socket-token={@socket_token}>
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h1 class="text-xl font-bold text-white"><%= @match.name %></h1>
+      <span class="text-sm text-gray-400">Round <span id="current-round">0</span> / <%= @match.total_rounds %></span>
+      <span class="ml-3 text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300" id="current-phase">waiting</span>
+    </div>
+    <%= if @match.host_id == @current_user.id && @match.status == "waiting" do %>
+      <button id="start-match-btn" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-white text-sm font-semibold">
+        Start Match
+      </button>
+    <% end %>
+  </div>
+
+  <div class="grid grid-cols-3 gap-4">
+    <!-- Players panel -->
+    <div class="col-span-1 bg-gray-900 rounded-lg p-4 border border-gray-700">
+      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Players</h3>
+      <div id="players-list" class="space-y-2">
+        <%= for mp <- @match.match_players do %>
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-gray-600"></div>
+            <span class="text-sm text-gray-300"><%= mp.user && mp.user.username %></span>
+            <%= if mp.user_id == @match.host_id do %>
+              <span class="text-xs text-emerald-400 ml-auto">host</span>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <!-- Market panel -->
+    <div class="col-span-2 bg-gray-900 rounded-lg p-4 border border-gray-700">
+      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Market</h3>
+      <div id="companies-list" class="space-y-2">
+        <p class="text-sm text-gray-500">Market data loads when the match starts.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action panel -->
+  <div id="action-panel" class="hidden mt-4 bg-gray-900 rounded-lg p-4 border border-gray-700">
+    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Submit Action</h3>
+    <div class="flex gap-2 flex-wrap" id="action-buttons">
+      <%= for action <- ~w(buy short hype leak freeze_liquidity report_to_regulator acquire_stake) do %>
+        <button class="action-btn text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 px-3 py-1 rounded text-gray-300"
+                data-action={action}>
+          <%= String.replace(action, "_", " ") %>
+        </button>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Chat panel -->
+  <div class="mt-4 bg-gray-900 rounded-lg border border-gray-700">
+    <div class="p-4 border-b border-gray-700">
+      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide">Chat</h3>
+    </div>
+    <div id="chat-messages" class="h-48 overflow-y-auto p-4 space-y-2 text-sm">
+      <p class="text-gray-500">Chat opens during the negotiation phase.</p>
+    </div>
+    <div class="p-3 border-t border-gray-700 flex gap-2">
+      <input id="chat-input" type="text" placeholder="Say something..."
+             class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+             maxlength="500" />
+      <button id="chat-send" class="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded text-white text-sm">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Expose match config to app.js
+  window.DarkPool = {
+    matchId: document.getElementById("match-app").dataset.matchId,
+    socketToken: document.getElementById("match-app").dataset.socketToken,
+    userId: "<%= @current_user.id %>"
+  };
+</script>

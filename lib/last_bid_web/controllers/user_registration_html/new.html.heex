@@ -1,0 +1,45 @@
+<div class="max-w-md mx-auto">
+  <h2 class="text-2xl font-bold mb-6">Create account</h2>
+
+  <.form :let={f} for={@changeset} action={~p"/users/register"} as={:user}>
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-300 mb-1">Username</label>
+      <input type="text" name={f[:username].name} id={f[:username].id}
+             value={f[:username].value}
+             class="block w-full rounded-md bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 text-sm"
+             placeholder="your_handle" />
+      <%= for {msg, _} <- Keyword.get_values(f.errors, :username) do %>
+        <p class="mt-1 text-sm text-red-400"><%= msg %></p>
+      <% end %>
+    </div>
+
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-300 mb-1">Email</label>
+      <input type="email" name={f[:email].name} id={f[:email].id}
+             value={f[:email].value}
+             class="block w-full rounded-md bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 text-sm"
+             placeholder="you@example.com" />
+      <%= for {msg, _} <- Keyword.get_values(f.errors, :email) do %>
+        <p class="mt-1 text-sm text-red-400"><%= msg %></p>
+      <% end %>
+    </div>
+
+    <div class="mb-6">
+      <label class="block text-sm font-medium text-gray-300 mb-1">Password</label>
+      <input type="password" name={f[:password].name} id={f[:password].id}
+             class="block w-full rounded-md bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 text-sm"
+             placeholder="min. 12 characters" />
+      <%= for {msg, _} <- Keyword.get_values(f.errors, :password) do %>
+        <p class="mt-1 text-sm text-red-400"><%= msg %></p>
+      <% end %>
+    </div>
+
+    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2 rounded-lg text-white font-semibold">
+      Register
+    </button>
+  </.form>
+
+  <p class="mt-4 text-center text-sm text-gray-400">
+    Already have an account? <a href={~p"/users/login"} class="text-emerald-400 hover:underline">Log in</a>
+  </p>
+</div>

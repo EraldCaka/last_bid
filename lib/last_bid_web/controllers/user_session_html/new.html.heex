@@ -1,0 +1,33 @@
+<div class="max-w-md mx-auto">
+  <h2 class="text-2xl font-bold mb-6">Log in</h2>
+
+  <%= if @error_message do %>
+    <div class="mb-4 p-3 bg-red-900 border border-red-700 rounded text-red-200 text-sm">
+      <%= @error_message %>
+    </div>
+  <% end %>
+
+  <.form :let={_f} for={%{}} action={~p"/users/login"} as={:user}>
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-300 mb-1">Email</label>
+      <input type="email" name="user[email]" id="user_email"
+             class="block w-full rounded-md bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 text-sm"
+             placeholder="you@example.com" required />
+    </div>
+
+    <div class="mb-6">
+      <label class="block text-sm font-medium text-gray-300 mb-1">Password</label>
+      <input type="password" name="user[password]" id="user_password"
+             class="block w-full rounded-md bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 text-sm"
+             placeholder="your password" required />
+    </div>
+
+    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2 rounded-lg text-white font-semibold">
+      Log in
+    </button>
+  </.form>
+
+  <p class="mt-4 text-center text-sm text-gray-400">
+    No account? <a href={~p"/users/register"} class="text-emerald-400 hover:underline">Register</a>
+  </p>
+</div>
