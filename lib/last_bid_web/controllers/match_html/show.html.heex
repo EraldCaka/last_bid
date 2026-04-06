@@ -1,7 +1,7 @@
 <%= if !@is_player do %>
   <div class="min-h-[60vh] flex items-center justify-center fade-in">
     <div class="card glow-emerald p-8 max-w-md w-full text-center">
-      <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mx-auto mb-5 float">
+      <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mx-auto mb-5">
         <svg class="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
           <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
           <polyline points="16 7 22 7 22 13"/>
@@ -23,11 +23,6 @@
         <form action={~p"/matches/#{@match.id}/join"} method="post">
           <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
           <button type="submit" class="btn-primary w-full py-3 text-base glow-emerald">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-              <polyline points="10 17 15 12 10 7"/>
-              <line x1="15" y1="12" x2="3" y2="12"/>
-            </svg>
             Join this Match
           </button>
         </form>
@@ -48,14 +43,14 @@
     };
   </script>
 
-  <div id="phase-overlay" class="phase-overlay" style="display:none" aria-live="polite">
+  <div id="phase-overlay" class="phase-overlay hidden" aria-live="polite">
     <div class="phase-overlay-inner pointer-events-none">
       <div id="phase-overlay-badge" class="phase-badge text-2xl px-8 py-4 font-mono tracking-widest uppercase">—</div>
       <p id="phase-overlay-desc" class="text-gray-400 mt-3 text-sm"></p>
     </div>
   </div>
 
-  <div id="action-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true">
+  <div id="action-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="modal-content">
       <div class="flex items-center justify-between mb-5">
         <div>
@@ -72,24 +67,22 @@
       </div>
 
       <div id="action-form" class="space-y-4">
-        <div id="field-ticker" style="display:none">
+        <div id="field-ticker" class="hidden">
           <label class="block text-xs font-mono font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Company</label>
           <div id="ticker-buttons" class="flex flex-wrap gap-2"></div>
         </div>
 
-        <div id="field-quantity" style="display:none">
-          <label class="block text-xs font-mono font-semibold text-gray-400 uppercase tracking-widest mb-1.5">
-            Quantity
-          </label>
+        <div id="field-quantity" class="hidden">
+          <label class="block text-xs font-mono font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Quantity</label>
           <input id="input-quantity" type="number" min="1" step="1" placeholder="100" class="terminal-input" />
         </div>
 
-        <div id="field-target" style="display:none">
+        <div id="field-target" class="hidden">
           <label class="block text-xs font-mono font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Target Player</label>
           <div id="target-buttons" class="space-y-2"></div>
         </div>
 
-        <div id="cost-estimate" class="rounded-lg bg-terminal-surface2 border border-terminal-border p-3" style="display:none">
+        <div id="cost-estimate" class="hidden rounded-lg bg-terminal-surface2 border border-terminal-border p-3">
           <div class="flex justify-between text-xs font-mono">
             <span class="text-gray-500">Estimated cost</span>
             <span id="cost-value" class="text-emerald-400 font-semibold">$0.00</span>
@@ -100,7 +93,7 @@
           </div>
         </div>
 
-        <div id="modal-error" class="rounded-lg bg-red-500/10 border border-red-500/25 text-red-300 text-xs font-mono p-2.5" style="display:none"></div>
+        <div id="modal-error" class="hidden rounded-lg bg-red-500/10 border border-red-500/25 text-red-300 text-xs font-mono p-2.5"></div>
 
         <button id="modal-submit" type="button" class="btn-primary w-full py-2.5">
           Confirm Action
@@ -123,7 +116,7 @@
           <span class="phase-badge phase-waiting">WAITING</span>
         </div>
 
-        <div id="countdown-timer" style="display:none" class="items-center gap-1.5 font-mono text-xs text-amber-400">
+        <div id="countdown-timer" class="hidden items-center gap-1.5 font-mono text-xs text-amber-400">
           <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/>
             <polyline points="12 6 12 12 16 14"/>
@@ -134,26 +127,14 @@
 
       <div class="flex items-center gap-2 flex-wrap">
         <button type="button" id="copy-invite-btn" class="btn-ghost text-xs" title="Copy invite link">
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-          </svg>
           Invite Link
         </button>
 
         <%= if @match.host_id == @current_user.id && @match.status == "waiting" do %>
-          <button type="button" id="start-match-btn" class="btn-primary text-xs">
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
-            Start Match
-          </button>
+          <button type="button" id="start-match-btn" class="btn-primary text-xs">Start Match</button>
         <% end %>
 
-        <div id="action-submitted-badge" style="display:none" class="items-center gap-1.5 text-xs font-mono text-emerald-400">
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
+        <div id="action-submitted-badge" class="hidden items-center gap-1.5 text-xs font-mono text-emerald-400">
           Submitted
         </div>
       </div>
@@ -178,7 +159,7 @@
           </div>
         </div>
 
-        <div id="my-stats" class="card p-4" style="display:none">
+        <div id="my-stats" class="card p-4 hidden">
           <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest mb-3">My Portfolio</h3>
           <div class="space-y-2">
             <div class="flex justify-between text-xs font-mono">
@@ -194,17 +175,15 @@
               <span id="my-heat" class="text-gray-300">0</span>
             </div>
           </div>
-
-          <div id="my-frozen-badge" class="mt-2 rounded bg-blue-500/10 border border-blue-500/25 text-blue-300 text-xs font-mono px-2 py-1 text-center" style="display:none">
+          <div id="my-frozen-badge" class="hidden mt-2 rounded bg-blue-500/10 border border-blue-500/25 text-blue-300 text-xs font-mono px-2 py-1 text-center">
             ❄ LIQUIDITY FROZEN
           </div>
-
           <div id="my-holdings" class="mt-3 pt-3 border-t border-terminal-border space-y-1.5 text-xs font-mono"></div>
         </div>
 
         <div class="card p-4">
           <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest mb-3">Events</h3>
-          <div id="events-feed" class="space-y-1.5 max-h-52 overflow-y-auto">
+          <div id="events-feed" class="space-y-2 max-h-80 overflow-y-auto">
             <p class="text-xs text-gray-600 font-mono text-center py-2">Waiting for match to start…</p>
           </div>
         </div>
@@ -233,7 +212,7 @@
           </div>
         </div>
 
-        <div id="action-panel" class="card p-4" style="display:none">
+        <div id="action-panel" class="card p-4 hidden">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest">Your Move</h3>
             <span class="text-xs text-amber-400 font-mono">One action per round</span>
@@ -270,10 +249,10 @@
               <span class="action-sub">lock rival</span>
             </button>
 
-            <button type="button" class="action-btn" data-action="report_to_regulator" data-label="Report" data-desc="Add regulatory heat. At 3+ heat, the target is frozen." data-needs-target="true">
+            <button type="button" class="action-btn" data-action="report_to_regulator" data-label="Report to Regulator" data-desc="Add regulatory heat to a target player." data-needs-target="true">
               <span class="action-icon">⚖️</span>
               <span class="action-name">REPORT</span>
-              <span class="action-sub">+reg. heat</span>
+              <span class="action-sub">+heat</span>
             </button>
 
             <button type="button" class="action-btn col-span-2" data-action="acquire_stake" data-label="Acquire Stake" data-desc="Large strategic buy. High impact, higher cost." data-needs-ticker="true" data-needs-quantity="true">
@@ -284,7 +263,82 @@
           </div>
         </div>
 
-        <div id="leaderboard-panel" class="card p-4" style="display:none">
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h3 id="selected-stock-title" class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest">Stock Detail</h3>
+              <p id="selected-stock-meta" class="text-xs text-gray-600 mt-1">Select a stock row to inspect round-by-round movement.</p>
+            </div>
+          </div>
+
+          <div id="stock-detail-empty" class="rounded-lg border border-terminal-border bg-terminal-surface2 p-8 text-center">
+            <div class="text-4xl mb-3">📈</div>
+            <p class="text-sm text-gray-400 font-mono">No stock selected</p>
+            <p class="text-xs text-gray-600 mt-1">Click any market row to view the full round history.</p>
+          </div>
+
+          <div id="stock-detail-panel" class="hidden space-y-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div class="rounded-lg border border-terminal-border bg-terminal-surface2 p-3">
+                <div class="text-[10px] font-mono uppercase tracking-widest text-gray-500">Current Price</div>
+                <div id="detail-current-price" class="mt-1 text-lg font-bold font-mono text-white">$0.00</div>
+              </div>
+
+              <div class="rounded-lg border border-terminal-border bg-terminal-surface2 p-3">
+                <div class="text-[10px] font-mono uppercase tracking-widest text-gray-500">Round Change</div>
+                <div id="detail-round-change" class="mt-1 text-lg font-bold font-mono text-emerald-400">+0.00%</div>
+              </div>
+
+              <div class="rounded-lg border border-terminal-border bg-terminal-surface2 p-3">
+                <div class="text-[10px] font-mono uppercase tracking-widest text-gray-500">Reg. Heat</div>
+                <div id="detail-reg-heat" class="mt-1 text-lg font-bold font-mono text-amber-400">0</div>
+              </div>
+
+              <div class="rounded-lg border border-terminal-border bg-terminal-surface2 p-3">
+                <div class="text-[10px] font-mono uppercase tracking-widest text-gray-500">History Points</div>
+                <div id="detail-history-count" class="mt-1 text-lg font-bold font-mono text-cyan-400">0</div>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-terminal-border bg-terminal-surface2 p-3">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-[10px] font-mono uppercase tracking-widest text-gray-500">Price History</div>
+                <div class="text-[10px] font-mono text-gray-600">Round 1 → <span id="detail-last-round">1</span></div>
+              </div>
+
+              <div class="h-[280px] md:h-[340px] w-full">
+                <canvas id="stock-detail-chart" class="w-full h-full"></canvas>
+              </div>
+            </div>
+
+            <div class="rounded-xl border border-terminal-border bg-terminal-surface2 p-3">
+              <div class="flex items-center justify-between mb-3">
+                <div class="text-[10px] font-mono uppercase tracking-widest text-gray-500">Round Timeline</div>
+                <div id="detail-history-summary" class="text-[10px] font-mono text-gray-600">No movement yet</div>
+              </div>
+
+              <div id="stock-history-list" class="space-y-2 max-h-64 overflow-y-auto pr-1">
+                <p class="text-xs text-gray-600 font-mono text-center py-4">Waiting for price history…</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="news-panel" class="card p-4">
+          <div class="flex items-center justify-between mb-3">
+            <div>
+              <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest">News Wire</h3>
+              <p class="text-xs text-gray-600 mt-1">Public market events and disclosures.</p>
+            </div>
+            <div class="text-[10px] font-mono uppercase tracking-widest text-emerald-400">LIVE FEED</div>
+          </div>
+
+          <div id="news-feed" class="space-y-2 max-h-72 overflow-y-auto">
+            <p class="text-xs text-gray-600 font-mono text-center py-4">No news yet.</p>
+          </div>
+        </div>
+
+        <div id="leaderboard-panel" class="card p-4 hidden">
           <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest mb-4">Final Rankings</h3>
           <div id="leaderboard-list" class="space-y-2"></div>
         </div>
@@ -304,10 +358,7 @@
           <div class="p-2.5 border-t border-terminal-border flex gap-2 shrink-0">
             <input id="chat-input" type="text" placeholder="Message…" maxlength="500" class="terminal-input text-xs py-1.5" style="font-size:0.8125rem" />
             <button type="button" id="chat-send" class="btn-primary text-xs py-1.5 px-3 shrink-0">
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <line x1="22" y1="2" x2="11" y2="13"/>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-              </svg>
+              Send
             </button>
           </div>
         </div>
@@ -318,22 +369,31 @@
 
 <style>
 .action-btn {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 3px; padding: 0.75rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0.75rem 0.5rem;
   background: var(--color-surface-2);
   border: 1px solid var(--color-border-bright);
-  border-radius: 8px; cursor: pointer;
+  border-radius: 8px;
+  cursor: pointer;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.1s;
-  text-align: center; min-height: 72px;
+  text-align: center;
+  min-height: 72px;
 }
+
 .action-btn:hover:not(:disabled) {
   border-color: rgba(16,185,129,0.5);
   background: rgba(16,185,129,0.05);
   box-shadow: 0 0 12px rgba(16,185,129,0.08);
 }
+
 .action-btn:active:not(:disabled) { transform: scale(0.97); }
 .action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .action-btn.submitted { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.08); }
+
 .action-icon { font-size: 1.25rem; line-height: 1; }
 .action-name { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 0.75rem; color: #e6edf3; }
 .action-sub { font-size: 0.65rem; color: #6b7280; }
@@ -343,24 +403,166 @@
   background: var(--color-surface-2);
   border: 1px solid var(--color-border-bright);
   border-radius: 6px;
-  font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem;
-  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
   color: var(--color-text);
 }
-.ticker-pill:hover { border-color: rgba(16,185,129,0.5); background: rgba(16,185,129,0.05); }
-.ticker-pill.selected { border-color: #10b981; background: rgba(16,185,129,0.15); color: #10b981; }
+
+.ticker-pill:hover {
+  border-color: rgba(16,185,129,0.5);
+  background: rgba(16,185,129,0.05);
+}
+
+.ticker-pill.selected {
+  border-color: #10b981;
+  background: rgba(16,185,129,0.15);
+  color: #10b981;
+}
 
 .player-pill {
-  display: flex; align-items: center; gap: 0.625rem;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
   padding: 0.5rem 0.75rem;
   background: var(--color-surface-2);
   border: 1px solid var(--color-border-bright);
-  border-radius: 6px; cursor: pointer;
-  transition: border-color 0.15s, background 0.15s; width: 100%;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  width: 100%;
   color: var(--color-text);
 }
-.player-pill:hover { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.05); }
-.player-pill.selected { border-color: #10b981; background: rgba(16,185,129,0.12); }
 
-.pulse-dot { animation: pulse-dot 2s infinite; }
-</style>
+.player-pill:hover {
+  border-color: rgba(16,185,129,0.4);
+  background: rgba(16,185,129,0.05);
+}
+
+.player-pill.selected {
+  border-color: #10b981;
+  background: rgba(16,185,129,0.12);
+}
+
+.ticker-row {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.65rem 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  border: 1px solid transparent;
+}
+
+.ticker-row:hover {
+  background: rgba(255,255,255,0.02);
+  border-color: rgba(16,185,129,0.18);
+}
+
+.ticker-row.selected {
+  background: rgba(16,185,129,0.08);
+  border-color
+
+         .ticker-row.selected {
+           background: rgba(16,185,129,0.08);
+           border-color: rgba(16,185,129,0.35);
+           box-shadow: inset 0 0 0 1px rgba(16,185,129,0.18);
+         }
+
+         .ticker-row > :nth-child(1) { grid-column: span 2 / span 2; }
+         .ticker-row > :nth-child(2) { grid-column: span 3 / span 3; }
+         .ticker-row > :nth-child(3) { grid-column: span 3 / span 3; }
+         .ticker-row > :nth-child(4) { grid-column: span 2 / span 2; }
+         .ticker-row > :nth-child(5) { grid-column: span 2 / span 2; }
+
+         .price-up { animation: flashGreen 650ms ease; }
+         .price-down { animation: flashRed 650ms ease; }
+
+         .row-flash-green { animation: rowFlashGreen 700ms ease; }
+         .row-flash-red { animation: rowFlashRed 700ms ease; }
+
+         @keyframes flashGreen {
+           0% { color: #ffffff; transform: scale(1); }
+           40% { color: #10b981; transform: scale(1.05); }
+           100% { color: #10b981; transform: scale(1); }
+         }
+
+         @keyframes flashRed {
+           0% { color: #ffffff; transform: scale(1); }
+           40% { color: #ef4444; transform: scale(1.05); }
+           100% { color: #ef4444; transform: scale(1); }
+         }
+
+         @keyframes rowFlashGreen {
+           0% { background: rgba(16,185,129,0.22); }
+           100% { background: transparent; }
+         }
+
+         @keyframes rowFlashRed {
+           0% { background: rgba(239,68,68,0.18); }
+           100% { background: transparent; }
+         }
+
+         .countdown-urgent {
+           color: #ef4444 !important;
+           animation: countdownPulse 1s infinite;
+         }
+
+         @keyframes countdownPulse {
+           0% { opacity: 1; }
+           50% { opacity: 0.45; }
+           100% { opacity: 1; }
+         }
+
+         .news-item {
+           padding: 0.75rem;
+           border: 1px solid var(--color-border-bright);
+           border-radius: 10px;
+           background: var(--color-surface-2);
+         }
+
+         .news-item.positive {
+           border-color: rgba(16,185,129,0.22);
+         }
+
+         .news-item.negative {
+           border-color: rgba(239,68,68,0.22);
+         }
+
+         .news-item.neutral {
+           border-color: rgba(148,163,184,0.18);
+         }
+
+         .history-item {
+           padding: 0.7rem 0.8rem;
+           border-radius: 10px;
+           background: var(--color-surface-2);
+           border: 1px solid var(--color-border-bright);
+         }
+
+         .history-item.up {
+           border-color: rgba(16,185,129,0.18);
+         }
+
+         .history-item.down {
+           border-color: rgba(239,68,68,0.18);
+         }
+
+         .history-item.flat {
+           border-color: rgba(148,163,184,0.18);
+         }
+
+         .pulse-dot {
+           animation: pulse-dot 2s infinite;
+         }
+
+         @keyframes pulse-dot {
+           0% { transform: scale(1); opacity: 0.9; }
+           50% { transform: scale(1.3); opacity: 0.45; }
+           100% { transform: scale(1); opacity: 0.9; }
+         }
+         </style>

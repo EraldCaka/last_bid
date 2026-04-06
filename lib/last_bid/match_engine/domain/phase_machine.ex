@@ -10,11 +10,6 @@ defmodule LastBid.MatchEngine.Domain.PhaseMachine do
 
   @negotiation_duration_seconds 120
 
-  @doc """
-  Advance the match to the next phase.
-
-  Returns {:ok, new_state} or {:error, reason}.
-  """
   def advance(%MatchState{} = state) do
     case next_phase(state) do
       {:ok, new_state} -> {:ok, new_state}
@@ -22,7 +17,6 @@ defmodule LastBid.MatchEngine.Domain.PhaseMachine do
     end
   end
 
-  @doc "Returns the next phase atom given current state."
   def next_phase_atom(%MatchState{phase: phase, round: round, total_rounds: total}) do
     case phase do
       :news -> :action_submission
@@ -35,11 +29,9 @@ defmodule LastBid.MatchEngine.Domain.PhaseMachine do
     end
   end
 
-  # Private transition logic
-
   defp next_phase(%MatchState{phase: :disclosure, round: round, total_rounds: total} = state)
        when round >= total do
-    {:ok, %{state | phase: :finished}}
+    {:ok, %{state | phase: :finished, negotiation_deadline: nil}}
   end
 
   defp next_phase(%MatchState{phase: :disclosure} = state) do
@@ -48,6 +40,7 @@ defmodule LastBid.MatchEngine.Domain.PhaseMachine do
       |> advance_round()
       |> clear_round_state()
       |> Map.put(:phase, :news)
+      |> Map.put(:negotiation_deadline, nil)
 
     {:ok, next_state}
   end
@@ -56,15 +49,18 @@ defmodule LastBid.MatchEngine.Domain.PhaseMachine do
     {:ok, state}
   end
 
-  defp next_phase(%MatchState{phase: :negotiation} = state) do
+  defp next_phase(%MatchState{phase: :action_submission} = state) do
     deadline = DateTime.add(DateTime.utc_now(), @negotiation_duration_seconds, :second)
-    {:ok, %{state | phase: :resolution, negotiation_deadline: deadline}}
+    {:ok, %{state | phase: :negotiation, negotiation_deadline: deadline}}
+  end
+
+  defp next_phase(%MatchState{phase: :negotiation} = state) do
+    {:ok, %{state | phase: :resolution, negotiation_deadline: nil}}
   end
 
   defp next_phase(%MatchState{phase: current} = state) do
     transition = %{
       news: :action_submission,
-      action_submission: :negotiation,
       resolution: :disclosure
     }
 

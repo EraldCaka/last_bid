@@ -2,7 +2,7 @@ defmodule LastBid.Market do
   @moduledoc """
   Market context.
 
-  Manages companies and persists price snapshots after round resolution.
+  Manages companies and persists price updates for a match.
   """
 
   import Ecto.Query
@@ -11,8 +11,18 @@ defmodule LastBid.Market do
 
   @doc "List companies for a match."
   def list_companies(match_id) do
-    Repo.all(from c in Company, where: c.match_id == ^match_id, order_by: c.ticker)
+    Repo.all(
+      from(c in Company,
+        where: c.match_id == ^match_id,
+        order_by: [asc: c.ticker]
+      )
+    )
   end
+
+  @doc """
+  Backward-compatible alias used by older runtime code.
+  """
+  def list_match_companies(match_id), do: list_companies(match_id)
 
   @doc "Get a company by id."
   def get_company!(id), do: Repo.get!(Company, id)
@@ -30,7 +40,7 @@ defmodule LastBid.Market do
   end
 
   @doc "Bulk update company prices from a map of %{ticker => new_price}."
-  def bulk_update_prices(match_id, price_map) do
+  def bulk_update_prices(match_id, price_map) when is_map(price_map) do
     Enum.each(price_map, fn {ticker, price} ->
       case get_company_by_ticker(match_id, ticker) do
         nil -> :skip
