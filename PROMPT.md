@@ -216,3 +216,14 @@ At the end, provide:
 - local run instructions
 - test instructions
 - security checklist
+
+Read the current codebase first before editing.
+
+Rules:
+- Fix issues with minimal scoped changes
+- Do not rewrite unrelated architecture
+- Keep backend and frontend payloads aligned
+- Prefer root-cause fixes over patching symptoms
+- Keep the project compiling
+- After changes, explain root cause briefly and list changed files
+- Do not touch _build, deps, node_modules, or generated folders

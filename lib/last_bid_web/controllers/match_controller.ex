@@ -56,6 +56,24 @@ defmodule LastBidWeb.MatchController do
 
     case Lobby.join_match(user, match_id) do
       {:ok, _match_player} ->
+        match = Lobby.get_match_with_players!(match_id)
+
+        players =
+          Enum.map(match.match_players, fn mp ->
+            %{
+              user_id: mp.user_id,
+              username: mp.user && mp.user.username,
+              seat_number: mp.seat_number,
+              regulatory_heat: 0,
+              liquidity_frozen: false,
+              has_submitted: false
+            }
+          end)
+
+        LastBidWeb.Endpoint.broadcast("match:#{match_id}", "waiting_room_updated", %{
+          players: players
+        })
+
         conn
         |> put_flash(:info, "You joined the match!")
         |> put_status(:see_other)

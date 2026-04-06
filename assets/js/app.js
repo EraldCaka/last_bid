@@ -478,6 +478,8 @@ class MatchManager {
     this.priceHistory = {};
     this.selectedTicker = null;
     this.detailChart = new DetailChart("stock-detail-chart");
+
+    this.onlineUsers = new Set();
   }
 
   init() {
@@ -601,8 +603,11 @@ class MatchManager {
     this._renderPlayers(payload.players || []);
     this._renderMarket(payload.companies || [], payload.round);
     this._renderActionPanel(payload.phase);
-    this._renderEvents(payload.public_events || []);
-    this._renderNews(payload.public_events || []);
+    const events = payload.public_events || [];
+    if (events.length > 0) {
+      this._renderEvents(events);
+      this._renderNews(events);
+    }
     this._updateChatIndicator(payload.phase);
 
     if (payload.phase === "negotiation" && payload.negotiation_deadline) {
@@ -683,9 +688,16 @@ class MatchManager {
   }
 
   _setPlayerOnline(userId, online) {
-    const row = document.querySelector(`[data-player-id="${userId}"]`);
-    const dot = row?.querySelector(".presence-dot");
-    if (dot) dot.classList.toggle("offline", !online);
+    if (online) this.onlineUsers.add(String(userId));
+    else this.onlineUsers.delete(String(userId));
+    this._applyOnlineState();
+  }
+
+  _applyOnlineState() {
+    document.querySelectorAll("[data-player-id]").forEach((row) => {
+      const dot = row.querySelector(".presence-dot");
+      if (dot) dot.classList.toggle("offline", !this.onlineUsers.has(row.dataset.playerId));
+    });
   }
 
   // ── rendering ────────────────────────────────────────────────────
@@ -738,6 +750,8 @@ class MatchManager {
 
         list.appendChild(row);
       });
+
+    this._applyOnlineState();
   }
 
   _renderMyStats(state) {
@@ -823,12 +837,10 @@ class MatchManager {
       list.appendChild(row);
 
       requestAnimationFrame(() => {
-        if (!this.sparklineCharts[c.ticker]) {
-          this.sparklineCharts[c.ticker] = new SparklineChart(chartId, {
-            width: 80,
-            height: 28,
-          });
-        }
+        this.sparklineCharts[c.ticker] = new SparklineChart(chartId, {
+          width: 80,
+          height: 28,
+        });
         this.sparklineCharts[c.ticker].reset(
           this.priceHistory[c.ticker].map((p) => p.price),
         );

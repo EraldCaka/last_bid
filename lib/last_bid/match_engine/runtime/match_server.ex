@@ -327,7 +327,7 @@ defmodule LastBid.MatchEngine.Runtime.MatchServer do
 
   defp persist_round_snapshot(state, _result) do
     public_state = Serializer.public_match_view(state)
-    full_state = %{players: state.players, companies: state.companies}
+    full_state = snapshot_state(state)
 
     %RoundSnapshot{}
     |> RoundSnapshot.create_changeset(%{
@@ -341,6 +341,49 @@ defmodule LastBid.MatchEngine.Runtime.MatchServer do
       {:ok, _} -> :ok
       {:error, _} -> :ok
     end
+  end
+
+  defp snapshot_state(state) do
+    %{
+      match_id: state.match_id,
+      round: state.round,
+      phase: state.phase,
+      total_rounds: state.total_rounds,
+      negotiation_deadline:
+        state.negotiation_deadline && DateTime.to_iso8601(state.negotiation_deadline),
+      players:
+        Map.new(state.players, fn {id, player} ->
+          {id,
+           %{
+             user_id: player.user_id,
+             username: player.username,
+             faction: player.faction,
+             seat_number: player.seat_number,
+             cash: Decimal.to_string(player.cash),
+             portfolio: player.portfolio,
+             short_positions: player.short_positions,
+             regulatory_heat: player.regulatory_heat,
+             liquidity_frozen: player.liquidity_frozen,
+             has_submitted: player.has_submitted
+           }}
+        end),
+      companies:
+        Map.new(state.companies, fn {ticker, company} ->
+          {ticker,
+           %{
+             ticker: company.ticker,
+             name: company.name,
+             price: Decimal.to_string(company.price),
+             base_price: Decimal.to_string(company.base_price),
+             volatility: company.volatility,
+             regulatory_heat: company.regulatory_heat,
+             pending_hype: company.pending_hype,
+             pending_leak: company.pending_leak
+           }}
+        end),
+      pending_actions: state.pending_actions,
+      public_events: state.public_events
+    }
   end
 
   defp load_match_state(match_id) do
