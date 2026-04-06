@@ -7,6 +7,7 @@ defmodule LastBid.Lobby do
   """
 
   import Ecto.Query
+  alias Ecto.Multi
   alias LastBid.Repo
   alias LastBid.Lobby.{Match, MatchPlayer}
   alias LastBid.Market.Company
@@ -20,16 +21,14 @@ defmodule LastBid.Lobby do
     %{name: "Stratos Finance", ticker: "STRF", base_price: Decimal.new("130.00")}
   ]
 
-  ## Match creation
-
   @doc "Create a new match. Automatically adds the creator as the host/first player."
   def create_match(user, attrs \\ %{}) do
-    Ecto.Multi.new()
-    |> Ecto.Multi.insert(
+    Multi.new()
+    |> Multi.insert(
       :match,
       Match.create_changeset(%Match{}, Map.put(attrs, "host_id", user.id))
     )
-    |> Ecto.Multi.run(:player, fn repo, %{match: match} ->
+    |> Multi.run(:player, fn repo, %{match: match} ->
       %MatchPlayer{}
       |> MatchPlayer.join_changeset(%{
         match_id: match.id,
@@ -38,15 +37,23 @@ defmodule LastBid.Lobby do
       })
       |> repo.insert()
     end)
-    |> Ecto.Multi.run(:companies, fn repo, %{match: match} ->
-      companies =
-        Enum.map(@default_companies, fn company_attrs ->
-          %Company{}
-          |> Company.create_changeset(Map.put(company_attrs, :match_id, match.id))
-          |> repo.insert!()
-        end)
+    |> Multi.run(:companies, fn repo, %{match: match} ->
+      @default_companies
+      |> Enum.reduce_while({:ok, []}, fn company_attrs, {:ok, acc} ->
+        attrs =
+          company_attrs
+          |> Map.put(:match_id, match.id)
+          |> Map.put(:current_price, company_attrs.base_price)
 
-      {:ok, companies}
+        case %Company{} |> Company.create_changeset(attrs) |> repo.insert() do
+          {:ok, company} -> {:cont, {:ok, [company | acc]}}
+          {:error, changeset} -> {:halt, {:error, changeset}}
+        end
+      end)
+      |> case do
+        {:ok, companies} -> {:ok, Enum.reverse(companies)}
+        {:error, changeset} -> {:error, changeset}
+      end
     end)
     |> Repo.transaction()
     |> case do
@@ -54,15 +61,10 @@ defmodule LastBid.Lobby do
         Audit.log(:match_created, %{name: match.name}, match_id: match.id, user_id: user.id)
         {:ok, match}
 
-      {:error, :match, changeset, _} ->
-        {:error, changeset}
-
-      {:error, :player, changeset, _} ->
+      {:error, _step, %Ecto.Changeset{} = changeset, _changes_so_far} ->
         {:error, changeset}
     end
   end
-
-  ## Match listing
 
   @doc "List all open matches (status: waiting)."
   def list_open_matches do
@@ -88,39 +90,84 @@ defmodule LastBid.Lobby do
     )
   end
 
-  ## Match retrieval
-
   @doc "Get a match by id."
   def get_match(id), do: Repo.get(Match, id)
 
   @doc "Get a match by id, raising if not found."
   def get_match!(id), do: Repo.get!(Match, id)
 
-  @doc "Get a match with players preloaded."
+  @doc "Get a match with host and players preloaded."
   def get_match_with_players!(id) do
     Match
     |> Repo.get!(id)
-    |> Repo.preload(match_players: [:user])
+    |> Repo.preload([
+      :host,
+      match_players: from(mp in MatchPlayer, order_by: [asc: mp.seat_number], preload: [:user])
+    ])
   end
-
-  ## Joining / leaving
 
   @doc "Join an open match. Returns {:ok, match_player} or {:error, reason}."
   def join_match(user, match_id) do
-    # If the user is already a player in this match, return the existing record.
     case get_match_player(user.id, match_id) do
       %MatchPlayer{} = mp ->
         {:ok, mp}
 
       nil ->
-        with {:ok, match} <- fetch_open_match(match_id),
-             {:ok, seat} <- next_available_seat(match),
-             {:ok, mp} <- insert_match_player(user, match, seat) do
-          Audit.log(:player_joined, %{}, match_id: match.id, user_id: user.id)
-          {:ok, mp}
-        else
-          # Propagate errors (changeset or domain errors) unchanged
-          {:error, _} = err -> err
+        Multi.new()
+        |> Multi.run(:match, fn repo, _changes ->
+          case repo.one(
+                 from(m in Match,
+                   where: m.id == ^match_id,
+                   lock: "FOR UPDATE"
+                 )
+               ) do
+            %Match{status: "waiting"} = match ->
+              {:ok, match}
+
+            %Match{status: "active"} = match ->
+              if Mix.env() == :dev, do: {:ok, match}, else: {:error, :match_not_open}
+
+            %Match{} ->
+              {:error, :match_not_open}
+
+            nil ->
+              {:error, :match_not_found}
+          end
+        end)
+        |> Multi.run(:seat, fn repo, %{match: match} ->
+          players =
+            repo.all(
+              from(mp in MatchPlayer,
+                where: mp.match_id == ^match.id,
+                select: mp.seat_number
+              )
+            )
+
+          if length(players) >= match.max_players do
+            {:error, :match_full}
+          else
+            taken = MapSet.new(players)
+            seat = Enum.find(1..match.max_players, fn s -> not MapSet.member?(taken, s) end)
+            {:ok, seat}
+          end
+        end)
+        |> Multi.run(:player, fn repo, %{match: match, seat: seat} ->
+          %MatchPlayer{}
+          |> MatchPlayer.join_changeset(%{
+            match_id: match.id,
+            user_id: user.id,
+            seat_number: seat
+          })
+          |> repo.insert()
+        end)
+        |> Repo.transaction()
+        |> case do
+          {:ok, %{player: mp, match: match}} ->
+            Audit.log(:player_joined, %{}, match_id: match.id, user_id: user.id)
+            {:ok, mp}
+
+          {:error, _step, reason, _changes_so_far} ->
+            {:error, normalize_join_error(reason)}
         end
     end
   end
@@ -149,8 +196,6 @@ defmodule LastBid.Lobby do
     Repo.get_by(MatchPlayer, user_id: user_id, match_id: match_id)
   end
 
-  ## Status transitions (called by MatchEngine.Runtime)
-
   @doc "Mark a match as active."
   def start_match!(match) do
     match
@@ -172,31 +217,6 @@ defmodule LastBid.Lobby do
     |> Repo.update!()
   end
 
-  ## Private helpers
-
-  defp fetch_open_match(match_id) do
-    case get_match(match_id) do
-      %Match{status: "waiting"} = match ->
-        {:ok, match}
-
-      # In development only, allow joining matches that are already active
-      # so you can test multiple clients locally without strict status checks.
-      %Match{status: "active"} = match ->
-        # Mix.env/0 cannot be used in a guard; check at runtime instead.
-        if Mix.env() == :dev do
-          {:ok, match}
-        else
-          {:error, :match_not_open}
-        end
-
-      %Match{} ->
-        {:error, :match_not_open}
-
-      nil ->
-        {:error, :match_not_found}
-    end
-  end
-
   defp fetch_waiting_match(match_id) do
     case get_match(match_id) do
       %Match{status: "waiting"} = match -> {:ok, match}
@@ -212,25 +232,27 @@ defmodule LastBid.Lobby do
     end
   end
 
-  defp next_available_seat(match) do
-    players = Repo.all(from(mp in MatchPlayer, where: mp.match_id == ^match.id))
-
-    if length(players) >= match.max_players do
-      {:error, :match_full}
-    else
-      taken = MapSet.new(players, & &1.seat_number)
-      seat = Enum.find(1..match.max_players, fn s -> s not in taken end)
-      {:ok, seat}
+  defp normalize_join_error(%Ecto.Changeset{} = changeset) do
+    cond do
+      seat_taken_error?(changeset) -> :match_full
+      duplicate_player_error?(changeset) -> :already_joined
+      true -> changeset
     end
   end
 
-  defp insert_match_player(user, match, seat) do
-    %MatchPlayer{}
-    |> MatchPlayer.join_changeset(%{
-      match_id: match.id,
-      user_id: user.id,
-      seat_number: seat
-    })
-    |> Repo.insert()
+  defp normalize_join_error(reason), do: reason
+
+  defp seat_taken_error?(changeset) do
+    Enum.any?(changeset.errors, fn
+      {:seat_number, {"has already been taken", _}} -> true
+      _ -> false
+    end)
+  end
+
+  defp duplicate_player_error?(changeset) do
+    Enum.any?(changeset.errors, fn
+      {:user_id, {"has already been taken", _}} -> true
+      _ -> false
+    end)
   end
 end

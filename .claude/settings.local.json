@@ -18,7 +18,8 @@
       "Bash(timeout 8 mix phx.server)",
       "Bash(mix phx.server)",
       "Bash(kill %1)",
-      "Bash(wait %1)"
+      "Bash(wait %1)",
+      "Bash(mix assets.build)"
     ]
   }
 }

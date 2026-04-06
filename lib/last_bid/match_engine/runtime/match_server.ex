@@ -28,6 +28,8 @@ defmodule LastBid.MatchEngine.Runtime.MatchServer do
 
   @registry LastBid.MatchEngine.Registry
   @negotiation_timeout_ms 125_000
+  # How long players see the news headline before action_submission opens
+  @news_display_ms 6_000
 
   # --- Public API ---
 
@@ -77,12 +79,20 @@ defmodule LastBid.MatchEngine.Runtime.MatchServer do
           round_number: state.round
         )
 
-        {:ok, state}
+        # Use handle_continue to broadcast initial phase AFTER init returns,
+        # so the process is fully registered before any broadcast is sent.
+        {:ok, state, {:continue, :enter_initial_phase}}
 
       {:error, reason} ->
         Logger.error("MatchServer failed to load state: #{inspect(reason)}")
         {:stop, reason}
     end
+  end
+
+  @impl true
+  def handle_continue(:enter_initial_phase, state) do
+    handle_phase_entry(state)
+    {:noreply, state}
   end
 
   @impl true
@@ -135,6 +145,20 @@ defmodule LastBid.MatchEngine.Runtime.MatchServer do
         {:reply, {:error, reason}, state}
     end
   end
+
+  @impl true
+  def handle_info(:advance_news, %{phase: :news} = state) do
+    case PhaseMachine.advance(state) do
+      {:ok, new_state} ->
+        handle_phase_entry(new_state)
+        {:noreply, new_state}
+
+      {:error, _} ->
+        {:noreply, state}
+    end
+  end
+
+  def handle_info(:advance_news, state), do: {:noreply, state}
 
   @impl true
   def handle_info(:advance_to_negotiation, state) do
@@ -255,6 +279,8 @@ defmodule LastBid.MatchEngine.Runtime.MatchServer do
   defp handle_phase_entry(%{phase: :news} = state) do
     broadcast_phase_change(state, :news)
     broadcast_public_state(state)
+    # Auto-advance to action_submission after players have seen the news headline
+    Process.send_after(self(), :advance_news, @news_display_ms)
   end
 
   defp handle_phase_entry(%{phase: :action_submission} = state) do

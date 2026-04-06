@@ -41,6 +41,7 @@ defmodule LastBidWeb.Router do
     get "/matches/new", MatchController, :new
     post "/matches", MatchController, :create
     get "/matches/:id", MatchController, :show
+    post "/matches/:id/join", MatchController, :join
   end
 
   ## Admin / development tools

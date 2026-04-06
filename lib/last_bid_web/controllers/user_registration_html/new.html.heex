@@ -1,45 +1,73 @@
-<div class="max-w-md mx-auto">
-  <h2 class="text-2xl font-bold mb-6">Create account</h2>
-
-  <.form :let={f} for={@changeset} action={~p"/users/register"} as={:user}>
-    <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-300 mb-1">Username</label>
-      <input type="text" name={f[:username].name} id={f[:username].id}
-             value={f[:username].value}
-             class="block w-full rounded-md bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 text-sm"
-             placeholder="your_handle" />
-      <%= for {msg, _} <- Keyword.get_values(f.errors, :username) do %>
-        <p class="mt-1 text-sm text-red-400"><%= msg %></p>
-      <% end %>
+<div class="min-h-[calc(100vh-8rem)] flex items-center justify-center -mt-6 fade-in">
+  <div class="w-full max-w-sm">
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mx-auto mb-4 glow-emerald">
+        <svg class="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+          <polyline points="16 7 22 7 22 13"/>
+        </svg>
+      </div>
+      <h1 class="font-mono font-bold text-white text-lg tracking-tight">DARK POOL</h1>
+      <p class="text-gray-500 text-xs mt-1">Create your trader account</p>
     </div>
 
-    <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-300 mb-1">Email</label>
-      <input type="email" name={f[:email].name} id={f[:email].id}
-             value={f[:email].value}
-             class="block w-full rounded-md bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 text-sm"
-             placeholder="you@example.com" />
-      <%= for {msg, _} <- Keyword.get_values(f.errors, :email) do %>
-        <p class="mt-1 text-sm text-red-400"><%= msg %></p>
-      <% end %>
+    <div class="card glow-emerald p-6">
+      <h2 class="font-mono font-semibold text-white mb-5">Register</h2>
+
+      <.form :let={f} for={@changeset} action={~p"/users/register"} as={:user} class="space-y-4">
+        <div>
+          <label class="block text-xs font-mono font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Username</label>
+          <input type="text"
+                 name={f[:username].name}
+                 id={f[:username].id}
+                 value={f[:username].value}
+                 class="terminal-input"
+                 placeholder="your_handle"
+                 autocomplete="username"
+                 autocorrect="off"
+                 autocapitalize="off" />
+          <%= for {msg, _} <- Keyword.get_values(f.errors, :username) do %>
+            <p class="mt-1 text-xs text-red-400 font-mono"><%= msg %></p>
+          <% end %>
+        </div>
+
+        <div>
+          <label class="block text-xs font-mono font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Email</label>
+          <input type="email"
+                 name={f[:email].name}
+                 id={f[:email].id}
+                 value={f[:email].value}
+                 class="terminal-input"
+                 placeholder="you@example.com"
+                 autocomplete="email" />
+          <%= for {msg, _} <- Keyword.get_values(f.errors, :email) do %>
+            <p class="mt-1 text-xs text-red-400 font-mono"><%= msg %></p>
+          <% end %>
+        </div>
+
+        <div>
+          <label class="block text-xs font-mono font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Password</label>
+          <input type="password"
+                 name={f[:password].name}
+                 id={f[:password].id}
+                 class="terminal-input"
+                 placeholder="min. 12 characters"
+                 autocomplete="new-password" />
+          <%= for {msg, _} <- Keyword.get_values(f.errors, :password) do %>
+            <p class="mt-1 text-xs text-red-400 font-mono"><%= msg %></p>
+          <% end %>
+        </div>
+
+        <button type="submit" class="btn-primary w-full py-2.5 mt-1">
+          Create Account
+        </button>
+      </.form>
     </div>
 
-    <div class="mb-6">
-      <label class="block text-sm font-medium text-gray-300 mb-1">Password</label>
-      <input type="password" name={f[:password].name} id={f[:password].id}
-             class="block w-full rounded-md bg-gray-800 border border-gray-700 text-gray-100 px-3 py-2 text-sm"
-             placeholder="min. 12 characters" />
-      <%= for {msg, _} <- Keyword.get_values(f.errors, :password) do %>
-        <p class="mt-1 text-sm text-red-400"><%= msg %></p>
-      <% end %>
-    </div>
-
-    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2 rounded-lg text-white font-semibold">
-      Register
-    </button>
-  </.form>
-
-  <p class="mt-4 text-center text-sm text-gray-400">
-    Already have an account? <a href={~p"/users/login"} class="text-emerald-400 hover:underline">Log in</a>
-  </p>
+    <p class="mt-4 text-center text-xs text-gray-500">
+      Already have an account?
+      <a href={~p"/users/login"} class="text-emerald-400 hover:text-emerald-300 transition-colors">Sign in</a>
+    </p>
+  </div>
 </div>

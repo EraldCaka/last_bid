@@ -1,78 +1,366 @@
-<div id="match-app" data-match-id={@match.id} data-socket-token={@socket_token}>
-  <div class="flex items-center justify-between mb-4">
-    <div>
-      <h1 class="text-xl font-bold text-white"><%= @match.name %></h1>
-      <span class="text-sm text-gray-400">Round <span id="current-round">0</span> / <%= @match.total_rounds %></span>
-      <span class="ml-3 text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300" id="current-phase">waiting</span>
-    </div>
-    <%= if @match.host_id == @current_user.id && @match.status == "waiting" do %>
-      <button id="start-match-btn" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-white text-sm font-semibold">
-        Start Match
-      </button>
-    <% end %>
-  </div>
-
-  <div class="grid grid-cols-3 gap-4">
-    <!-- Players panel -->
-    <div class="col-span-1 bg-gray-900 rounded-lg p-4 border border-gray-700">
-      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Players</h3>
-      <div id="players-list" class="space-y-2">
-        <%= for mp <- @match.match_players do %>
-          <div class="flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full bg-gray-600"></div>
-            <span class="text-sm text-gray-300"><%= mp.user && mp.user.username %></span>
-            <%= if mp.user_id == @match.host_id do %>
-              <span class="text-xs text-emerald-400 ml-auto">host</span>
-            <% end %>
-          </div>
-        <% end %>
+<%= if !@is_player do %>
+  <div class="min-h-[60vh] flex items-center justify-center fade-in">
+    <div class="card glow-emerald p-8 max-w-md w-full text-center">
+      <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mx-auto mb-5 float">
+        <svg class="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+          <polyline points="16 7 22 7 22 13"/>
+        </svg>
       </div>
-    </div>
 
-    <!-- Market panel -->
-    <div class="col-span-2 bg-gray-900 rounded-lg p-4 border border-gray-700">
-      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Market</h3>
-      <div id="companies-list" class="space-y-2">
-        <p class="text-sm text-gray-500">Market data loads when the match starts.</p>
-      </div>
-    </div>
-  </div>
+      <h2 class="font-bold font-mono text-white text-xl mb-1">You've been invited!</h2>
 
-  <!-- Action panel -->
-  <div id="action-panel" class="hidden mt-4 bg-gray-900 rounded-lg p-4 border border-gray-700">
-    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Submit Action</h3>
-    <div class="flex gap-2 flex-wrap" id="action-buttons">
-      <%= for action <- ~w(buy short hype leak freeze_liquidity report_to_regulator acquire_stake) do %>
-        <button class="action-btn text-xs bg-gray-800 hover:bg-gray-700 border border-gray-600 px-3 py-1 rounded text-gray-300"
-                data-action={action}>
-          <%= String.replace(action, "_", " ") %>
-        </button>
+      <p class="text-gray-400 text-sm mb-1">
+        <span class="text-emerald-400 font-semibold"><%= @match.name %></span>
+      </p>
+
+      <p class="text-gray-500 text-xs mb-6">
+        <%= length(@match.match_players) %>/<%= @match.max_players %> players ·
+        hosted by <%= @match.host && @match.host.username %>
+      </p>
+
+      <%= if @match.status == "waiting" do %>
+        <form action={~p"/matches/#{@match.id}/join"} method="post">
+          <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+          <button type="submit" class="btn-primary w-full py-3 text-base glow-emerald">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+              <polyline points="10 17 15 12 10 7"/>
+              <line x1="15" y1="12" x2="3" y2="12"/>
+            </svg>
+            Join this Match
+          </button>
+        </form>
+      <% else %>
+        <div class="rounded-lg bg-amber-500/10 border border-amber-500/25 text-amber-300 text-sm p-3 mb-4">
+          This match has already started and is not accepting new players.
+        </div>
+        <a href={~p"/lobby"} class="btn-ghost w-full justify-center py-2.5">Back to Lobby</a>
       <% end %>
     </div>
   </div>
+<% else %>
+  <script>
+    window.DarkPool = {
+      matchId: "<%= @match.id %>",
+      socketToken: "<%= @socket_token %>",
+      userId: "<%= @current_user.id %>"
+    };
+  </script>
 
-  <!-- Chat panel -->
-  <div class="mt-4 bg-gray-900 rounded-lg border border-gray-700">
-    <div class="p-4 border-b border-gray-700">
-      <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide">Chat</h3>
-    </div>
-    <div id="chat-messages" class="h-48 overflow-y-auto p-4 space-y-2 text-sm">
-      <p class="text-gray-500">Chat opens during the negotiation phase.</p>
-    </div>
-    <div class="p-3 border-t border-gray-700 flex gap-2">
-      <input id="chat-input" type="text" placeholder="Say something..."
-             class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-             maxlength="500" />
-      <button id="chat-send" class="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded text-white text-sm">Send</button>
+  <div id="phase-overlay" class="phase-overlay" style="display:none" aria-live="polite">
+    <div class="phase-overlay-inner pointer-events-none">
+      <div id="phase-overlay-badge" class="phase-badge text-2xl px-8 py-4 font-mono tracking-widest uppercase">—</div>
+      <p id="phase-overlay-desc" class="text-gray-400 mt-3 text-sm"></p>
     </div>
   </div>
-</div>
 
-<script>
-  // Expose match config to app.js
-  window.DarkPool = {
-    matchId: document.getElementById("match-app").dataset.matchId,
-    socketToken: document.getElementById("match-app").dataset.socketToken,
-    userId: "<%= @current_user.id %>"
-  };
-</script>
+  <div id="action-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h3 id="modal-title" class="font-bold font-mono text-white text-lg"></h3>
+          <p id="modal-desc" class="text-xs text-gray-500 mt-0.5"></p>
+        </div>
+
+        <button type="button" id="modal-close" class="btn-ghost p-1.5" aria-label="Close">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="action-form" class="space-y-4">
+        <div id="field-ticker" style="display:none">
+          <label class="block text-xs font-mono font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Company</label>
+          <div id="ticker-buttons" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div id="field-quantity" style="display:none">
+          <label class="block text-xs font-mono font-semibold text-gray-400 uppercase tracking-widest mb-1.5">
+            Quantity
+          </label>
+          <input id="input-quantity" type="number" min="1" step="1" placeholder="100" class="terminal-input" />
+        </div>
+
+        <div id="field-target" style="display:none">
+          <label class="block text-xs font-mono font-semibold text-gray-400 uppercase tracking-widest mb-1.5">Target Player</label>
+          <div id="target-buttons" class="space-y-2"></div>
+        </div>
+
+        <div id="cost-estimate" class="rounded-lg bg-terminal-surface2 border border-terminal-border p-3" style="display:none">
+          <div class="flex justify-between text-xs font-mono">
+            <span class="text-gray-500">Estimated cost</span>
+            <span id="cost-value" class="text-emerald-400 font-semibold">$0.00</span>
+          </div>
+          <div class="flex justify-between text-xs font-mono mt-1">
+            <span class="text-gray-500">Cash remaining</span>
+            <span id="cash-remaining" class="text-gray-300">—</span>
+          </div>
+        </div>
+
+        <div id="modal-error" class="rounded-lg bg-red-500/10 border border-red-500/25 text-red-300 text-xs font-mono p-2.5" style="display:none"></div>
+
+        <button id="modal-submit" type="button" class="btn-primary w-full py-2.5">
+          Confirm Action
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="match-app" class="flex flex-col gap-4 fade-in">
+    <div class="card p-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-4 flex-wrap">
+        <div>
+          <h1 class="font-bold font-mono text-white text-sm"><%= @match.name %></h1>
+          <p class="text-xs text-gray-500 font-mono mt-0.5">
+            Round <span id="current-round" class="text-gray-300">—</span>/<%= @match.total_rounds %>
+          </p>
+        </div>
+
+        <div id="phase-badge-container">
+          <span class="phase-badge phase-waiting">WAITING</span>
+        </div>
+
+        <div id="countdown-timer" style="display:none" class="items-center gap-1.5 font-mono text-xs text-amber-400">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span id="countdown-value">2:00</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 flex-wrap">
+        <button type="button" id="copy-invite-btn" class="btn-ghost text-xs" title="Copy invite link">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          Invite Link
+        </button>
+
+        <%= if @match.host_id == @current_user.id && @match.status == "waiting" do %>
+          <button type="button" id="start-match-btn" class="btn-primary text-xs">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Start Match
+          </button>
+        <% end %>
+
+        <div id="action-submitted-badge" style="display:none" class="items-center gap-1.5 text-xs font-mono text-emerald-400">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Submitted
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div class="lg:col-span-3 space-y-4">
+        <div class="card p-4">
+          <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest mb-3">Players</h3>
+          <div id="players-list" class="space-y-2.5">
+            <%= for mp <- @match.match_players do %>
+              <div class="flex items-center gap-2.5" data-player-id={mp.user_id}>
+                <div class="presence-dot offline"></div>
+                <div class="flex-1 min-w-0">
+                  <span class="text-sm text-gray-300 font-mono truncate"><%= mp.user && mp.user.username %></span>
+                  <%= if mp.user_id == @match.host_id do %>
+                    <span class="text-xs text-emerald-500 font-mono ml-1.5">HOST</span>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+
+        <div id="my-stats" class="card p-4" style="display:none">
+          <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest mb-3">My Portfolio</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-gray-500">Cash</span>
+              <span id="my-cash" class="text-emerald-400 font-semibold">—</span>
+            </div>
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-gray-500">Net Worth</span>
+              <span id="my-networth" class="text-white font-semibold">—</span>
+            </div>
+            <div class="flex justify-between text-xs font-mono">
+              <span class="text-gray-500">Reg. Heat</span>
+              <span id="my-heat" class="text-gray-300">0</span>
+            </div>
+          </div>
+
+          <div id="my-frozen-badge" class="mt-2 rounded bg-blue-500/10 border border-blue-500/25 text-blue-300 text-xs font-mono px-2 py-1 text-center" style="display:none">
+            ❄ LIQUIDITY FROZEN
+          </div>
+
+          <div id="my-holdings" class="mt-3 pt-3 border-t border-terminal-border space-y-1.5 text-xs font-mono"></div>
+        </div>
+
+        <div class="card p-4">
+          <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest mb-3">Events</h3>
+          <div id="events-feed" class="space-y-1.5 max-h-52 overflow-y-auto">
+            <p class="text-xs text-gray-600 font-mono text-center py-2">Waiting for match to start…</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-6 space-y-4">
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest">Market</h3>
+            <div class="flex items-center gap-1.5 text-xs text-gray-600 font-mono">
+              <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-dot"></div>
+              LIVE
+            </div>
+          </div>
+
+          <div class="grid grid-cols-12 gap-2 px-2 pb-2 text-xs font-mono text-gray-600 uppercase tracking-wide border-b border-terminal-border mb-1">
+            <div class="col-span-2">Ticker</div>
+            <div class="col-span-3">Name</div>
+            <div class="col-span-3 text-right">Price</div>
+            <div class="col-span-2 text-right">Chg</div>
+            <div class="col-span-2">Chart</div>
+          </div>
+
+          <div id="companies-list" class="space-y-0.5 min-h-[120px]">
+            <p class="text-sm text-gray-600 font-mono text-center py-10">Loading market data…</p>
+          </div>
+        </div>
+
+        <div id="action-panel" class="card p-4" style="display:none">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest">Your Move</h3>
+            <span class="text-xs text-amber-400 font-mono">One action per round</span>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="action-buttons">
+            <button type="button" class="action-btn" data-action="buy" data-label="Buy Shares" data-desc="Purchase shares. Raises price and builds your portfolio." data-needs-ticker="true" data-needs-quantity="true">
+              <span class="action-icon">📈</span>
+              <span class="action-name">BUY</span>
+              <span class="action-sub">+price</span>
+            </button>
+
+            <button type="button" class="action-btn" data-action="short" data-label="Short Sell" data-desc="Bet against a company. Profit if price falls." data-needs-ticker="true" data-needs-quantity="true">
+              <span class="action-icon">📉</span>
+              <span class="action-name">SHORT</span>
+              <span class="action-sub">bear play</span>
+            </button>
+
+            <button type="button" class="action-btn" data-action="hype" data-label="Hype" data-desc="Spread positive sentiment. +2% to price." data-needs-ticker="true">
+              <span class="action-icon">🚀</span>
+              <span class="action-name">HYPE</span>
+              <span class="action-sub">+2%</span>
+            </button>
+
+            <button type="button" class="action-btn" data-action="leak" data-label="Leak Intel" data-desc="Leak damaging info. -3% to target company price." data-needs-ticker="true" data-needs-target="true">
+              <span class="action-icon">📡</span>
+              <span class="action-name">LEAK</span>
+              <span class="action-sub">-3%</span>
+            </button>
+
+            <button type="button" class="action-btn" data-action="freeze_liquidity" data-label="Freeze Liquidity" data-desc="Lock a rival out for one round. They cannot act." data-needs-target="true">
+              <span class="action-icon">🧊</span>
+              <span class="action-name">FREEZE</span>
+              <span class="action-sub">lock rival</span>
+            </button>
+
+            <button type="button" class="action-btn" data-action="report_to_regulator" data-label="Report" data-desc="Add regulatory heat. At 3+ heat, the target is frozen." data-needs-target="true">
+              <span class="action-icon">⚖️</span>
+              <span class="action-name">REPORT</span>
+              <span class="action-sub">+reg. heat</span>
+            </button>
+
+            <button type="button" class="action-btn col-span-2" data-action="acquire_stake" data-label="Acquire Stake" data-desc="Large strategic buy. High impact, higher cost." data-needs-ticker="true" data-needs-quantity="true">
+              <span class="action-icon">🏦</span>
+              <span class="action-name">ACQUIRE STAKE</span>
+              <span class="action-sub">strategic buy</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="leaderboard-panel" class="card p-4" style="display:none">
+          <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest mb-4">Final Rankings</h3>
+          <div id="leaderboard-list" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-3">
+        <div class="card flex flex-col" style="min-height:380px;max-height:580px;">
+          <div class="p-3 border-b border-terminal-border flex items-center justify-between shrink-0">
+            <h3 class="text-xs font-mono font-semibold text-gray-500 uppercase tracking-widest">Chat</h3>
+            <span id="chat-phase-indicator" class="text-xs text-gray-600 font-mono">Closed</span>
+          </div>
+
+          <div id="chat-messages" class="flex-1 overflow-y-auto p-3 space-y-1.5 min-h-0">
+            <p class="text-xs text-gray-600 font-mono text-center py-6">Chat opens in negotiation phase.</p>
+          </div>
+
+          <div class="p-2.5 border-t border-terminal-border flex gap-2 shrink-0">
+            <input id="chat-input" type="text" placeholder="Message…" maxlength="500" class="terminal-input text-xs py-1.5" style="font-size:0.8125rem" />
+            <button type="button" id="chat-send" class="btn-primary text-xs py-1.5 px-3 shrink-0">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<style>
+.action-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 0.75rem 0.5rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-bright);
+  border-radius: 8px; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.1s;
+  text-align: center; min-height: 72px;
+}
+.action-btn:hover:not(:disabled) {
+  border-color: rgba(16,185,129,0.5);
+  background: rgba(16,185,129,0.05);
+  box-shadow: 0 0 12px rgba(16,185,129,0.08);
+}
+.action-btn:active:not(:disabled) { transform: scale(0.97); }
+.action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.action-btn.submitted { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.08); }
+.action-icon { font-size: 1.25rem; line-height: 1; }
+.action-name { font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 0.75rem; color: #e6edf3; }
+.action-sub { font-size: 0.65rem; color: #6b7280; }
+
+.ticker-pill {
+  padding: 0.375rem 0.75rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-bright);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.8125rem;
+  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  color: var(--color-text);
+}
+.ticker-pill:hover { border-color: rgba(16,185,129,0.5); background: rgba(16,185,129,0.05); }
+.ticker-pill.selected { border-color: #10b981; background: rgba(16,185,129,0.15); color: #10b981; }
+
+.player-pill {
+  display: flex; align-items: center; gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-bright);
+  border-radius: 6px; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s; width: 100%;
+  color: var(--color-text);
+}
+.player-pill:hover { border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.05); }
+.player-pill.selected { border-color: #10b981; background: rgba(16,185,129,0.12); }
+
+.pulse-dot { animation: pulse-dot 2s infinite; }
+</style>

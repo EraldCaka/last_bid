@@ -5,15 +5,22 @@ defmodule LastBid.Lobby.MatchPlayer do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
-  @factions ~w(activist_fund quant_predator shell_network media_syndicate distressed_debt regulatory_fixer)
+  @factions ~w(
+    activist_fund
+    quant_predator
+    shell_network
+    media_syndicate
+    distressed_debt
+    regulatory_fixer
+  )
 
   schema "match_players" do
-    field :faction, :string
-    field :seat_number, :integer
-    field :ready, :boolean, default: false
+    field(:faction, :string)
+    field(:seat_number, :integer)
+    field(:ready, :boolean, default: false)
 
-    belongs_to :match, LastBid.Lobby.Match
-    belongs_to :user, LastBid.Accounts.User
+    belongs_to(:match, LastBid.Lobby.Match)
+    belongs_to(:user, LastBid.Accounts.User)
 
     timestamps(type: :utc_datetime)
   end
@@ -23,11 +30,24 @@ defmodule LastBid.Lobby.MatchPlayer do
     match_player
     |> cast(attrs, [:match_id, :user_id, :seat_number, :faction])
     |> validate_required([:match_id, :user_id, :seat_number])
-    |> validate_inclusion(:faction, @factions)
+    |> validate_number(:seat_number, greater_than: 0)
+    |> maybe_validate_faction()
+    |> foreign_key_constraint(:match_id)
+    |> foreign_key_constraint(:user_id)
     |> unique_constraint([:match_id, :user_id], name: :match_players_match_id_user_id_index)
-    |> unique_constraint([:match_id, :seat_number], name: :match_players_match_id_seat_number_index)
+    |> unique_constraint([:match_id, :seat_number],
+      name: :match_players_match_id_seat_number_index
+    )
   end
 
   @doc "All valid player factions."
   def factions, do: @factions
+
+  defp maybe_validate_faction(changeset) do
+    case get_field(changeset, :faction) do
+      nil -> changeset
+      "" -> put_change(changeset, :faction, nil)
+      faction -> validate_inclusion(changeset, :faction, @factions, message: "is invalid")
+    end
+  end
 end

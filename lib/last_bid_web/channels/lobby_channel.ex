@@ -51,8 +51,9 @@ defmodule LastBidWeb.LobbyChannel do
 
     case Lobby.create_match(user, attrs) do
       {:ok, match} ->
-        # Broadcast updated match list to all lobby members
-        broadcast!(socket, "match_created", format_match(match))
+        # Reload with preloads before broadcasting so format_match has full data
+        full_match = Lobby.get_match_with_players!(match.id)
+        broadcast!(socket, "match_created", format_match(full_match))
         {:reply, {:ok, %{match_id: match.id}}, socket}
 
       {:error, changeset} ->
@@ -133,13 +134,26 @@ defmodule LastBidWeb.LobbyChannel do
   end
 
   defp format_match(match) do
+    player_count =
+      case match.match_players do
+        %Ecto.Association.NotLoaded{} -> 0
+        players -> length(players)
+      end
+
+    host_username =
+      case match.host do
+        %Ecto.Association.NotLoaded{} -> nil
+        nil -> nil
+        host -> host.username
+      end
+
     %{
       id: match.id,
       name: match.name,
       status: match.status,
       max_players: match.max_players,
-      player_count: length(match.match_players || []),
-      host_username: match.host && match.host.username
+      player_count: player_count,
+      host_username: host_username
     }
   end
 
