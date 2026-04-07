@@ -9,8 +9,6 @@ defmodule LastBid.Accounts do
   alias LastBid.Repo
   alias LastBid.Accounts.{User, UserToken}
 
-  ## User retrieval
-
   @doc "Gets a user by id. Returns nil if not found."
   def get_user(id), do: Repo.get(User, id)
 
@@ -33,8 +31,6 @@ defmodule LastBid.Accounts do
     user = get_user_by_email(email)
     if User.valid_password?(user, password), do: user
   end
-
-  ## User registration
 
   @doc "Registers a new user."
   def register_user(attrs) do
@@ -69,17 +65,18 @@ defmodule LastBid.Accounts do
     :ok
   end
 
-  # Expose token_and_context_query via delegation so channels can use it.
   defdelegate token_and_context_query(token, context), to: UserToken
-
-  ## Password reset
 
   @doc "Delivers a password reset email token."
   def deliver_user_reset_password_instructions(%User{} = user, reset_url_fun)
       when is_function(reset_url_fun, 1) do
     {encoded_token, user_token} = UserToken.build_email_token(user, "reset_password")
     Repo.insert!(user_token)
-    LastBid.Accounts.UserNotifier.deliver_reset_password_instructions(user, reset_url_fun.(encoded_token))
+
+    LastBid.Accounts.UserNotifier.deliver_reset_password_instructions(
+      user,
+      reset_url_fun.(encoded_token)
+    )
   end
 
   @doc "Gets the user by reset token, or nil."
@@ -106,8 +103,6 @@ defmodule LastBid.Accounts do
       {:error, :user, changeset, _} -> {:error, changeset}
     end
   end
-
-  ## Settings
 
   @doc "Returns a changeset for changing the user's email."
   def change_user_email(user, attrs \\ %{}) do

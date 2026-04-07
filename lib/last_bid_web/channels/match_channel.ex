@@ -4,6 +4,17 @@ defmodule LastBidWeb.MatchChannel do
   alias LastBid.{Chat, Lobby, MatchEngine, Moderation}
   alias LastBidWeb.Presence
 
+  @allowed_actions ~w(
+    buy
+    sell
+    short
+    leak
+    hype
+    freeze_liquidity
+    report_to_regulator
+    acquire_stake
+  )
+
   @impl true
   def join("match:" <> match_id, _params, socket) do
     user_id = socket.assigns.user_id
@@ -73,22 +84,15 @@ defmodule LastBidWeb.MatchChannel do
     user_id = socket.assigns.user_id
     match_id = socket.assigns.match_id
 
-    action_type =
-      case action_type_str do
-        s when is_binary(s) -> String.to_existing_atom(s)
-        _ -> nil
-      end
-
-    if is_nil(action_type) do
-      {:reply, {:error, %{reason: "invalid_action_type"}}, socket}
-    else
-      case MatchEngine.submit_action(match_id, user_id, action_type, params) do
+    with {:ok, action_type} <- parse_action_type(action_type_str) do
+      case MatchEngine.submit_action(match_id, user_id, action_type, params || %{}) do
         :ok -> {:reply, :ok, socket}
         {:error, reason} -> {:reply, {:error, %{reason: inspect(reason)}}, socket}
       end
+    else
+      {:error, reason} ->
+        {:reply, {:error, %{reason: reason}}, socket}
     end
-  rescue
-    ArgumentError -> {:reply, {:error, %{reason: "invalid_action_type"}}, socket}
   end
 
   @impl true
@@ -124,4 +128,14 @@ defmodule LastBidWeb.MatchChannel do
       {:error, reason} -> {:reply, {:error, %{reason: inspect(reason)}}, socket}
     end
   end
+
+  defp parse_action_type(action_type) when is_binary(action_type) do
+    if action_type in @allowed_actions do
+      {:ok, String.to_atom(action_type)}
+    else
+      {:error, "invalid_action_type"}
+    end
+  end
+
+  defp parse_action_type(_), do: {:error, "invalid_action_type"}
 end

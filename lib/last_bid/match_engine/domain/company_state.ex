@@ -10,7 +10,6 @@ defmodule LastBid.MatchEngine.Domain.CompanyState do
           base_price: Decimal.t(),
           volatility: float(),
           regulatory_heat: non_neg_integer(),
-          # Pending hype/leak effects accumulated this round (cleared after resolution)
           pending_hype: integer(),
           pending_leak: integer()
         }

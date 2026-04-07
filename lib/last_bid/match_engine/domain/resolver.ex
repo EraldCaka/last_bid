@@ -1,312 +1,346 @@
 defmodule LastBid.MatchEngine.Domain.Resolver do
-  @moduledoc """
-  Pure deterministic round resolver.
+  @moduledoc false
 
-  Applies actions in a strict, deterministic order:
-    1. Event effects (news price deltas)
-    2. Liquidity freeze effects
-    3. Buy / short market impact
-    4. Leak / hype market impact
-    5. Stake acquisitions
-    6. Regulator heat
-    7. Public event generation
-  """
-
-  alias LastBid.MatchEngine.Domain.{MatchState, CompanyState}
-
-  @type resolution_result :: %{
-          state: MatchState.t(),
-          public_events: list(),
-          private_events: %{String.t() => list()}
-        }
+  alias LastBid.MatchEngine.Domain.MatchState
 
   def resolve(%MatchState{} = state, news_event) do
-    original_prices = CompanyState.price_map(state.companies)
-    private_events = Map.new(Map.keys(state.players), fn uid -> {uid, []} end)
+    {state, news_public_events} = apply_news_event(state, news_event)
 
-    {state, private_events} =
-      state
-      |> apply_news_event(news_event, private_events)
-      |> apply_freeze_liquidity(state.pending_actions)
-      |> apply_buy_short(state.pending_actions)
-      |> apply_leaks_hype(state.pending_actions)
-      |> apply_stake_acquisitions(state.pending_actions)
-      |> apply_regulator_actions(state.pending_actions)
+    {state, public_events, private_events} =
+      state.pending_actions
+      |> Enum.reverse()
+      |> Enum.reduce({state, news_public_events, %{}}, fn action,
+                                                          {acc_state, acc_public, acc_private} ->
+        {next_state, new_public, new_private} = apply_action(acc_state, action)
 
-    public_events = build_public_events(state, news_event, original_prices)
+        merged_private =
+          Map.merge(acc_private, new_private, fn _user_id, left, right ->
+            left ++ right
+          end)
+
+        {next_state, acc_public ++ new_public, merged_private}
+      end)
+
+    price_events =
+      Enum.map(state.companies, fn {ticker, company} ->
+        %{
+          type: :price_updated,
+          ticker: ticker,
+          price: company.price,
+          delta_pct: 0.0
+        }
+      end)
 
     %{
-      state: %{state | public_events: public_events},
-      public_events: public_events,
+      state: state,
+      public_events: public_events ++ price_events,
       private_events: private_events
     }
   end
 
-  defp apply_news_event(%MatchState{} = state, news_event, private_events) do
-    companies =
-      Enum.reduce(news_event.targets, state.companies, fn ticker, acc ->
-        case Map.get(acc, ticker) do
-          nil ->
-            acc
+  defp apply_news_event(state, nil), do: {state, []}
 
-          company ->
-            Map.put(acc, ticker, CompanyState.apply_price_delta(company, news_event.price_delta))
-        end
+  defp apply_news_event(state, %{targets: targets, price_delta: delta} = event)
+       when is_list(targets) and is_number(delta) do
+    new_companies =
+      Enum.reduce(targets, state.companies, fn ticker, companies ->
+        update_in(companies[ticker], fn
+          nil -> nil
+          company -> %{company | price: adjust_price(company.price, delta)}
+        end)
       end)
 
-    {%{state | companies: companies}, private_events}
+    public_event = %{
+      type: :news_event,
+      round: event.round,
+      headline: event.description,
+      targets: targets,
+      impact: delta
+    }
+
+    {%{state | companies: new_companies}, [public_event]}
   end
 
-  defp apply_freeze_liquidity({state, private_events}, actions) do
-    freezes = Enum.filter(actions, &(&1.action_type == "freeze_liquidity"))
+  defp apply_news_event(state, _event), do: {state, []}
 
-    players =
-      Enum.reduce(freezes, state.players, fn action, acc ->
-        target_id = get_in(action.payload, ["target_user_id"])
+  defp apply_action(state, %{action_type: "buy", user_id: user_id, payload: payload}) do
+    ticker = payload[:ticker] || payload["ticker"]
+    requested_qty = payload[:quantity] || payload["quantity"] || 0
+    player = state.players[user_id]
+    company = state.companies[ticker]
 
-        if target_id && Map.has_key?(acc, target_id) do
-          Map.update!(acc, target_id, &%{&1 | liquidity_frozen: true})
-        else
-          acc
-        end
-      end)
-
-    updated_private =
-      Enum.reduce(freezes, private_events, fn action, acc ->
-        target_id = get_in(action.payload, ["target_user_id"])
-        event = {:freeze_applied, target_id}
-        Map.update(acc, action.user_id, [event], &[event | &1])
-      end)
-
-    {%{state | players: players}, updated_private}
-  end
-
-  defp apply_buy_short({state, private_events}, actions) do
-    buys = Enum.filter(actions, &(&1.action_type == "buy"))
-    shorts = Enum.filter(actions, &(&1.action_type == "short"))
-
-    {state, buy_events} = Enum.reduce(buys, {state, []}, &apply_buy/2)
-    {state, short_events} = Enum.reduce(shorts, {state, []}, &apply_short/2)
-
-    updated_private =
-      Enum.reduce(buy_events ++ short_events, private_events, fn {uid, event}, acc ->
-        Map.update(acc, uid, [event], &[event | &1])
-      end)
-
-    {state, updated_private}
-  end
-
-  defp apply_buy(action, {state, events}) do
-    ticker = get_in(action.payload, ["ticker"])
-    quantity = normalize_qty(get_in(action.payload, ["quantity"]))
-    user_id = action.user_id
-
-    with player when not is_nil(player) <- Map.get(state.players, user_id),
-         company when not is_nil(company) <- Map.get(state.companies, ticker),
-         false <- player.liquidity_frozen do
-      cost = Decimal.mult(company.price, Decimal.new(quantity))
-
-      if Decimal.compare(player.cash, cost) != :lt do
-        new_cash = Decimal.sub(player.cash, cost)
-        new_portfolio = Map.update(player.portfolio, ticker, quantity, &(&1 + quantity))
-        new_player = %{player | cash: new_cash, portfolio: new_portfolio}
-        new_company = CompanyState.apply_price_delta(company, impact_for_buy(quantity))
-
-        new_state =
-          state
-          |> put_in([Access.key(:players), user_id], new_player)
-          |> put_in([Access.key(:companies), ticker], new_company)
-
-        event = {user_id, {:buy_executed, ticker, quantity, company.price}}
-        {new_state, [event | events]}
+    max_affordable =
+      if to_float(company.price) <= 0 do
+        0
       else
-        {state, events}
+        floor(to_float(player.cash) / to_float(company.price))
       end
+
+    qty = min(requested_qty, max_affordable)
+
+    if qty <= 0 do
+      {state, [], %{user_id => [%{message: "Buy failed: not enough cash.", positive: false}]}}
     else
-      _ -> {state, events}
-    end
-  end
-
-  defp apply_short(action, {state, events}) do
-    ticker = get_in(action.payload, ["ticker"])
-    quantity = normalize_qty(get_in(action.payload, ["quantity"]))
-    user_id = action.user_id
-
-    with player when not is_nil(player) <- Map.get(state.players, user_id),
-         company when not is_nil(company) <- Map.get(state.companies, ticker),
-         false <- player.liquidity_frozen do
-      new_shorts = Map.update(player.short_positions, ticker, quantity, &(&1 + quantity))
-      new_player = %{player | short_positions: new_shorts}
-      new_company = CompanyState.apply_price_delta(company, -impact_for_short(quantity))
+      cost = to_float(company.price) * qty
+      new_cash = money(to_float(player.cash) - cost)
+      old_owned = Map.get(player.portfolio, ticker, 0)
+      new_owned = old_owned + qty
+      new_price = adjust_price(company.price, min(0.12, qty * 0.002))
 
       new_state =
         state
-        |> put_in([Access.key(:players), user_id], new_player)
-        |> put_in([Access.key(:companies), ticker], new_company)
+        |> put_in([Access.key!(:players), user_id, Access.key!(:cash)], new_cash)
+        |> put_in([Access.key!(:players), user_id, Access.key!(:portfolio), ticker], new_owned)
+        |> put_in([Access.key!(:companies), ticker, Access.key!(:price)], new_price)
 
-      event = {user_id, {:short_opened, ticker, quantity}}
-      {new_state, [event | events]}
+      public_event = %{headline: "#{player.username} bought #{qty} #{ticker}.", type: :trade}
+
+      private_event = %{
+        message: "Bought #{qty} shares of #{ticker} for $#{Float.round(cost, 2)}.",
+        positive: true
+      }
+
+      {new_state, [public_event], %{user_id => [private_event]}}
+    end
+  end
+
+  defp apply_action(state, %{action_type: "sell", user_id: user_id, payload: payload}) do
+    ticker = payload[:ticker] || payload["ticker"]
+    requested_qty = payload[:quantity] || payload["quantity"] || 0
+    player = state.players[user_id]
+    company = state.companies[ticker]
+
+    owned = Map.get(player.portfolio, ticker, 0)
+    qty = min(requested_qty, owned)
+
+    if qty <= 0 do
+      {state, [],
+       %{user_id => [%{message: "Sell failed: you do not own shares to sell.", positive: false}]}}
     else
-      _ -> {state, events}
+      proceeds = to_float(company.price) * qty
+      new_cash = money(to_float(player.cash) + proceeds)
+      remaining = max(owned - qty, 0)
+      new_price = adjust_price(company.price, -min(0.12, qty * 0.002))
+
+      new_portfolio =
+        if remaining == 0 do
+          Map.delete(player.portfolio, ticker)
+        else
+          Map.put(player.portfolio, ticker, remaining)
+        end
+
+      new_state =
+        state
+        |> put_in([Access.key!(:players), user_id, Access.key!(:cash)], new_cash)
+        |> put_in([Access.key!(:players), user_id, Access.key!(:portfolio)], new_portfolio)
+        |> put_in([Access.key!(:companies), ticker, Access.key!(:price)], new_price)
+
+      public_event = %{headline: "#{player.username} sold #{qty} #{ticker}.", type: :trade}
+
+      private_event = %{
+        message: "Sold #{qty} shares of #{ticker} for $#{Float.round(proceeds, 2)}.",
+        positive: true
+      }
+
+      {new_state, [public_event], %{user_id => [private_event]}}
     end
   end
 
-  defp apply_leaks_hype({state, private_events}, actions) do
-    leaks = Enum.filter(actions, &(&1.action_type == "leak"))
-    hypes = Enum.filter(actions, &(&1.action_type == "hype"))
+  defp apply_action(state, %{action_type: "short", user_id: user_id, payload: payload}) do
+    ticker = payload[:ticker] || payload["ticker"]
+    requested_qty = payload[:quantity] || payload["quantity"] || 0
+    player = state.players[user_id]
+    company = state.companies[ticker]
 
-    companies =
-      Enum.reduce(leaks, state.companies, fn action, acc ->
-        ticker = get_in(action.payload, ["ticker"])
+    qty = max(requested_qty, 0)
 
-        if ticker && Map.has_key?(acc, ticker) do
-          Map.update!(acc, ticker, &%{&1 | pending_leak: &1.pending_leak + 1})
-        else
-          acc
-        end
-      end)
-
-    companies =
-      Enum.reduce(hypes, companies, fn action, acc ->
-        ticker = get_in(action.payload, ["ticker"])
-
-        if ticker && Map.has_key?(acc, ticker) do
-          Map.update!(acc, ticker, &%{&1 | pending_hype: &1.pending_hype + 1})
-        else
-          acc
-        end
-      end)
-
-    companies =
-      Map.new(companies, fn {ticker, company} ->
-        delta = company.pending_hype * 0.02 - company.pending_leak * 0.03
-
-        {ticker,
-         if(delta != 0, do: CompanyState.apply_price_delta(company, delta), else: company)}
-      end)
-
-    {%{state | companies: companies}, private_events}
-  end
-
-  defp apply_stake_acquisitions({state, private_events}, actions) do
-    stakes = Enum.filter(actions, &(&1.action_type == "acquire_stake"))
-
-    {state, stake_events} =
-      Enum.reduce(stakes, {state, []}, fn action, {st, evs} ->
-        ticker = get_in(action.payload, ["ticker"])
-        quantity = normalize_qty(get_in(action.payload, ["quantity"]))
-        user_id = action.user_id
-
-        with player when not is_nil(player) <- Map.get(st.players, user_id),
-             company when not is_nil(company) <- Map.get(st.companies, ticker),
-             false <- player.liquidity_frozen do
-          cost = Decimal.mult(company.price, Decimal.new(quantity))
-
-          if Decimal.compare(player.cash, cost) != :lt do
-            new_cash = Decimal.sub(player.cash, cost)
-            new_portfolio = Map.update(player.portfolio, ticker, quantity, &(&1 + quantity))
-            new_player = %{player | cash: new_cash, portfolio: new_portfolio}
-            new_company = CompanyState.apply_price_delta(company, impact_for_stake(quantity))
-
-            new_state =
-              st
-              |> put_in([Access.key(:players), user_id], new_player)
-              |> put_in([Access.key(:companies), ticker], new_company)
-
-            event = {user_id, {:stake_acquired, ticker, quantity}}
-            {new_state, [event | evs]}
-          else
-            {st, evs}
-          end
-        else
-          _ -> {st, evs}
-        end
-      end)
-
-    updated_private =
-      Enum.reduce(stake_events, private_events, fn {uid, event}, acc ->
-        Map.update(acc, uid, [event], &[event | &1])
-      end)
-
-    {state, updated_private}
-  end
-
-  defp apply_regulator_actions({state, private_events}, actions) do
-    reports = Enum.filter(actions, &(&1.action_type == "report_to_regulator"))
-
-    players =
-      Enum.reduce(reports, state.players, fn action, acc ->
-        target_id = get_in(action.payload, ["target_user_id"])
-
-        if target_id && Map.has_key?(acc, target_id) do
-          Map.update!(acc, target_id, &%{&1 | regulatory_heat: &1.regulatory_heat + 1})
-        else
-          acc
-        end
-      end)
-
-    players =
-      Map.new(players, fn {id, player} ->
-        if player.regulatory_heat >= 3 do
-          {id, %{player | liquidity_frozen: true}}
-        else
-          {id, player}
-        end
-      end)
-
-    {%{state | players: players}, private_events}
-  end
-
-  defp build_public_events(state, news_event, original_prices) do
-    price_changes =
-      Enum.reduce(state.companies, [], fn {ticker, company}, acc ->
-        previous = Map.get(original_prices, ticker, company.price)
-
-        if Decimal.compare(previous, company.price) == :eq do
-          acc
-        else
-          pct_change = pct_change(previous, company.price)
-
-          [
-            %{
-              type: :price_updated,
-              ticker: ticker,
-              price: company.price,
-              previous_price: previous,
-              pct_change: pct_change
-            }
-            | acc
-          ]
-        end
-      end)
-      |> Enum.reverse()
-
-    [%{type: :news_event, event: news_event} | price_changes]
-  end
-
-  defp impact_for_buy(qty), do: min(0.005 + qty / 10_000, 0.08)
-  defp impact_for_short(qty), do: min(0.005 + qty / 10_000, 0.08)
-  defp impact_for_stake(qty), do: min(0.02 + qty / 5_000, 0.12)
-
-  defp normalize_qty(qty) when is_integer(qty), do: max(qty, 0)
-
-  defp normalize_qty(qty) when is_binary(qty) do
-    case Integer.parse(qty) do
-      {int, _} -> max(int, 0)
-      :error -> 0
-    end
-  end
-
-  defp normalize_qty(_), do: 0
-
-  defp pct_change(previous, current) do
-    prev = Decimal.to_float(previous)
-    curr = Decimal.to_float(current)
-
-    if prev == 0 do
-      0.0
+    if qty <= 0 do
+      {state, [], %{user_id => [%{message: "Short failed: invalid quantity.", positive: false}]}}
     else
-      (curr - prev) / prev * 100.0
+      old_short = Map.get(player.short_positions, ticker, 0)
+      new_short = old_short + qty
+      credit = to_float(company.price) * qty * 0.25
+      new_cash = money(to_float(player.cash) + credit)
+      new_price = adjust_price(company.price, -min(0.18, qty * 0.003))
+
+      new_state =
+        state
+        |> put_in([Access.key!(:players), user_id, Access.key!(:cash)], new_cash)
+        |> put_in(
+          [Access.key!(:players), user_id, Access.key!(:short_positions), ticker],
+          new_short
+        )
+        |> put_in([Access.key!(:companies), ticker, Access.key!(:price)], new_price)
+
+      public_event = %{
+        headline: "#{player.username} increased a short position in #{ticker}.",
+        type: :trade
+      }
+
+      private_event = %{message: "Shorted #{qty} shares of #{ticker}.", positive: true}
+
+      {new_state, [public_event], %{user_id => [private_event]}}
     end
+  end
+
+  defp apply_action(state, %{action_type: "acquire_stake", user_id: user_id, payload: payload}) do
+    ticker = payload[:ticker] || payload["ticker"]
+    requested_qty = payload[:quantity] || payload["quantity"] || 0
+    player = state.players[user_id]
+    company = state.companies[ticker]
+
+    price_per_share = to_float(company.price) * 1.1
+
+    max_affordable =
+      if price_per_share <= 0, do: 0, else: floor(to_float(player.cash) / price_per_share)
+
+    qty = min(requested_qty, max_affordable)
+
+    if qty <= 0 do
+      {state, [],
+       %{user_id => [%{message: "Acquire stake failed: not enough cash.", positive: false}]}}
+    else
+      cost = price_per_share * qty
+      new_cash = money(to_float(player.cash) - cost)
+      old_owned = Map.get(player.portfolio, ticker, 0)
+      new_owned = old_owned + qty
+      new_price = adjust_price(company.price, min(0.25, qty * 0.004))
+
+      new_state =
+        state
+        |> put_in([Access.key!(:players), user_id, Access.key!(:cash)], new_cash)
+        |> put_in([Access.key!(:players), user_id, Access.key!(:portfolio), ticker], new_owned)
+        |> put_in([Access.key!(:companies), ticker, Access.key!(:price)], new_price)
+
+      public_event = %{
+        headline: "#{player.username} acquired a strategic stake in #{ticker}.",
+        type: :trade
+      }
+
+      private_event = %{message: "Acquired #{qty} shares of #{ticker}.", positive: true}
+
+      {new_state, [public_event], %{user_id => [private_event]}}
+    end
+  end
+
+  defp apply_action(state, %{action_type: "hype", user_id: user_id, payload: payload}) do
+    ticker = payload[:ticker] || payload["ticker"]
+    player = state.players[user_id]
+    company = state.companies[ticker]
+    new_price = adjust_price(company.price, 0.02)
+
+    new_state = put_in(state, [Access.key!(:companies), ticker, Access.key!(:price)], new_price)
+
+    public_event = %{
+      headline: "#{player.username} pumped positive sentiment around #{ticker}.",
+      type: :news
+    }
+
+    {new_state, [public_event], %{}}
+  end
+
+  defp apply_action(state, %{action_type: "leak", user_id: user_id, payload: payload}) do
+    ticker = payload[:ticker] || payload["ticker"]
+    target_user_id = payload[:target_user_id] || payload["target_user_id"]
+    player = state.players[user_id]
+    target = state.players[target_user_id]
+    company = state.companies[ticker]
+    new_price = adjust_price(company.price, -0.03)
+
+    new_state = put_in(state, [Access.key!(:companies), ticker, Access.key!(:price)], new_price)
+
+    public_event = %{
+      headline: "#{player.username} leaked damaging intel about #{ticker}.",
+      type: :news
+    }
+
+    private_event = %{
+      message: "You were targeted by a leak operation from #{player.username}.",
+      positive: false
+    }
+
+    {new_state, [public_event],
+     %{
+       target_user_id => [private_event],
+       user_id => [%{message: "Leak executed against #{target.username}.", positive: true}]
+     }}
+  end
+
+  defp apply_action(state, %{action_type: "freeze_liquidity", user_id: user_id, payload: payload}) do
+    target_user_id = payload[:target_user_id] || payload["target_user_id"]
+    player = state.players[user_id]
+    target = state.players[target_user_id]
+
+    new_state =
+      put_in(state, [Access.key!(:players), target_user_id, Access.key!(:liquidity_frozen)], true)
+
+    public_event = %{
+      headline: "#{player.username} froze liquidity for #{target.username}.",
+      type: :control
+    }
+
+    private_events = %{
+      target_user_id => [%{message: "Your liquidity was frozen for this round.", positive: false}],
+      user_id => [%{message: "Liquidity freeze applied to #{target.username}.", positive: true}]
+    }
+
+    {new_state, [public_event], private_events}
+  end
+
+  defp apply_action(state, %{
+         action_type: "report_to_regulator",
+         user_id: user_id,
+         payload: payload
+       }) do
+    target_user_id = payload[:target_user_id] || payload["target_user_id"]
+    player = state.players[user_id]
+    target = state.players[target_user_id]
+
+    current_heat = target.regulatory_heat || 0
+    new_heat = current_heat + 1
+
+    target_player =
+      state.players[target_user_id]
+      |> Map.put(:regulatory_heat, new_heat)
+      |> maybe_freeze_from_heat()
+
+    new_state = put_in(state, [Access.key!(:players), target_user_id], target_player)
+
+    public_event = %{
+      headline: "#{player.username} reported #{target.username} to regulators.",
+      type: :control
+    }
+
+    private_events = %{
+      target_user_id => [%{message: "Regulatory heat increased to #{new_heat}.", positive: false}],
+      user_id => [%{message: "Report filed against #{target.username}.", positive: true}]
+    }
+
+    {new_state, [public_event], private_events}
+  end
+
+  defp apply_action(state, _action), do: {state, [], %{}}
+
+  defp maybe_freeze_from_heat(player) do
+    if (player.regulatory_heat || 0) >= 3 do
+      %{player | liquidity_frozen: true}
+    else
+      player
+    end
+  end
+
+  defp adjust_price(decimal_price, pct_delta) do
+    base = to_float(decimal_price)
+    next = max(1.0, base * (1.0 + pct_delta))
+    money(next)
+  end
+
+  defp to_float(%Decimal{} = d), do: Decimal.to_float(d)
+  defp to_float(v) when is_number(v), do: v
+  defp to_float(_), do: 0.0
+
+  defp money(value) when is_number(value) do
+    rounded = Float.round(value, 2)
+    Decimal.new(:erlang.float_to_binary(rounded, decimals: 2))
   end
 end

@@ -16,7 +16,6 @@ defmodule LastBidWeb.LobbyChannel do
 
   @impl true
   def join("lobby:general", _params, socket) do
-    # Any authenticated user may join the lobby
     send(self(), :after_join)
     {:ok, socket}
   end
@@ -26,11 +25,9 @@ defmodule LastBidWeb.LobbyChannel do
     user_id = socket.assigns.user_id
     user = LastBid.Accounts.get_user!(user_id)
 
-    # Track presence in lobby
     Presence.track_user(socket, user_id, %{username: user.username})
     push(socket, "presence_state", Presence.list(socket))
 
-    # Push current open matches
     push(socket, "open_matches", %{matches: list_open_matches()})
 
     {:noreply, socket}
@@ -106,7 +103,6 @@ defmodule LastBidWeb.LobbyChannel do
     user_id = socket.assigns.user_id
     match = Lobby.get_match!(match_id)
 
-    # Only the host can start the match
     if match && match.host_id == user_id do
       case MatchEngine.start_match(match_id) do
         {:ok, _match} ->

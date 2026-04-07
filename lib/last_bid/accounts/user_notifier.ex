@@ -8,7 +8,7 @@ defmodule LastBid.Accounts.UserNotifier do
     email =
       new()
       |> to(recipient)
-      |> from({"Dark Pool", "no-reply@darkpool.local"})
+      |> from({"Dark Pool", "info@darkpool.com"})
       |> subject(subject)
       |> text_body(body)
 

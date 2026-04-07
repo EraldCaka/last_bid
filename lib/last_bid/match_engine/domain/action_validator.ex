@@ -1,146 +1,138 @@
 defmodule LastBid.MatchEngine.Domain.ActionValidator do
-  @moduledoc """
-  Pure validation of submitted actions against the current match state.
-
-  Never trust the client's claimed game state. All validation runs on
-  the server-side MatchState.
-  """
+  @moduledoc false
 
   alias LastBid.MatchEngine.Domain.MatchState
 
-  @action_types ~w(buy short leak hype freeze_liquidity report_to_regulator acquire_stake)a
+  @quantity_actions [:buy, :sell, :short, :acquire_stake]
+  @ticker_actions [:buy, :sell, :short, :hype, :leak, :acquire_stake]
+  @target_actions [:freeze_liquidity, :report_to_regulator, :leak]
 
-  @doc """
-  Validate an action against the current MatchState.
+  def validate(%MatchState{phase: phase}, _user_id, _action_type, _params)
+      when phase != :action_submission do
+    {:error, :invalid_phase}
+  end
 
-  Returns {:ok, normalized_params} or {:error, reason}.
-  """
-  def validate(%MatchState{} = state, user_id, action_type, params)
-      when action_type in @action_types do
-    with :ok <- check_player_exists(state, user_id),
-         :ok <- check_phase(state),
-         :ok <- check_not_already_submitted(state, user_id),
-         :ok <- check_liquidity(state, user_id),
-         {:ok, normalized} <- validate_action(state, user_id, action_type, params) do
-      {:ok, normalized}
+  def validate(%MatchState{} = state, user_id, action_type, params) when is_binary(action_type) do
+    validate(state, user_id, String.to_existing_atom(action_type), params)
+  rescue
+    ArgumentError -> {:error, :invalid_action_type}
+  end
+
+  def validate(%MatchState{} = state, user_id, action_type, params) when is_atom(action_type) do
+    with {:ok, player} <- fetch_player(state, user_id),
+         :ok <- ensure_can_act(player),
+         {:ok, normalized} <- normalize(state, action_type, params) do
+      {:ok, Map.put(normalized, :action, action_type)}
     end
   end
 
-  def validate(_state, _user_id, action_type, _params) do
-    {:error, {:invalid_action_type, action_type}}
-  end
-
-  # Guards
-
-  defp check_player_exists(%MatchState{players: players}, user_id) do
-    if Map.has_key?(players, user_id), do: :ok, else: {:error, :not_a_player}
-  end
-
-  defp check_phase(%MatchState{phase: :action_submission}), do: :ok
-  defp check_phase(%MatchState{phase: phase}), do: {:error, {:wrong_phase, phase}}
-
-  defp check_not_already_submitted(%MatchState{players: players}, user_id) do
-    player = Map.fetch!(players, user_id)
-    if player.has_submitted, do: {:error, :already_submitted}, else: :ok
-  end
-
-  defp check_liquidity(%MatchState{players: players}, user_id) do
-    player = Map.fetch!(players, user_id)
-    if player.liquidity_frozen, do: {:error, :liquidity_frozen}, else: :ok
-  end
-
-  # Per-action validations
-
-  defp validate_action(state, user_id, :buy, params) do
-    with {:ok, ticker} <- require_ticker(params, state),
-         {:ok, quantity} <- require_positive_integer(params, "quantity"),
-         :ok <- check_cash(state, user_id, ticker, quantity) do
-      {:ok, %{action: :buy, ticker: ticker, quantity: quantity}}
+  defp fetch_player(%MatchState{players: players}, user_id) do
+    case Map.get(players, user_id) do
+      nil -> {:error, :not_a_player}
+      player -> {:ok, player}
     end
   end
 
-  defp validate_action(state, user_id, :short, params) do
-    with {:ok, ticker} <- require_ticker(params, state),
-         {:ok, quantity} <- require_positive_integer(params, "quantity"),
-         :ok <- check_short_limit(state, user_id, ticker, quantity) do
-      {:ok, %{action: :short, ticker: ticker, quantity: quantity}}
+  defp ensure_can_act(%{liquidity_frozen: true}), do: {:error, :liquidity_frozen}
+  defp ensure_can_act(%{has_submitted: true}), do: {:error, :already_submitted}
+  defp ensure_can_act(_player), do: :ok
+
+  defp normalize(state, action_type, params) do
+    with :ok <- validate_ticker_if_needed(state, action_type, params),
+         :ok <- validate_target_if_needed(state, action_type, params),
+         :ok <- validate_quantity_if_needed(action_type, params) do
+      {:ok,
+       %{}
+       |> maybe_put_ticker(params)
+       |> maybe_put_target(params)
+       |> maybe_put_quantity(params)}
     end
   end
 
-  defp validate_action(state, _user_id, :leak, params) do
-    with {:ok, ticker} <- require_ticker(params, state),
-         {:ok, target_id} <- require_user_id(params, state) do
-      {:ok, %{action: :leak, ticker: ticker, target_user_id: target_id}}
-    end
-  end
+  defp validate_ticker_if_needed(state, action_type, params) do
+    if action_type in @ticker_actions do
+      ticker = param(params, :ticker)
 
-  defp validate_action(state, _user_id, :hype, params) do
-    with {:ok, ticker} <- require_ticker(params, state) do
-      {:ok, %{action: :hype, ticker: ticker}}
-    end
-  end
+      cond do
+        is_nil(ticker) or ticker == "" ->
+          {:error, :ticker_required}
 
-  defp validate_action(state, _user_id, :freeze_liquidity, params) do
-    with {:ok, target_id} <- require_user_id(params, state) do
-      {:ok, %{action: :freeze_liquidity, target_user_id: target_id}}
-    end
-  end
+        Map.has_key?(state.companies, ticker) ->
+          :ok
 
-  defp validate_action(state, _user_id, :report_to_regulator, params) do
-    with {:ok, target_id} <- require_user_id(params, state) do
-      {:ok, %{action: :report_to_regulator, target_user_id: target_id}}
-    end
-  end
-
-  defp validate_action(state, user_id, :acquire_stake, params) do
-    with {:ok, ticker} <- require_ticker(params, state),
-         {:ok, quantity} <- require_positive_integer(params, "quantity"),
-         :ok <- check_cash(state, user_id, ticker, quantity) do
-      {:ok, %{action: :acquire_stake, ticker: ticker, quantity: quantity}}
-    end
-  end
-
-  # Helpers
-
-  defp require_ticker(%{"ticker" => ticker}, %MatchState{companies: companies}) do
-    if Map.has_key?(companies, ticker), do: {:ok, ticker}, else: {:error, {:unknown_ticker, ticker}}
-  end
-
-  defp require_ticker(_, _), do: {:error, :missing_ticker}
-
-  defp require_positive_integer(%{} = params, key) do
-    case Map.get(params, key) do
-      n when is_integer(n) and n > 0 -> {:ok, n}
-      n when is_binary(n) -> case Integer.parse(n) do
-        {v, ""} when v > 0 -> {:ok, v}
-        _ -> {:error, {:invalid_quantity, n}}
+        true ->
+          {:error, :unknown_ticker}
       end
-      _ -> {:error, {:missing_or_invalid, key}}
-    end
-  end
-
-  defp require_user_id(%{"target_user_id" => tid}, %MatchState{players: players}) do
-    if Map.has_key?(players, tid), do: {:ok, tid}, else: {:error, {:unknown_player, tid}}
-  end
-
-  defp require_user_id(_, _), do: {:error, :missing_target_user_id}
-
-  defp check_cash(%MatchState{players: players, companies: companies}, user_id, ticker, quantity) do
-    player = Map.fetch!(players, user_id)
-    company = Map.fetch!(companies, ticker)
-    cost = Decimal.mult(company.price, Decimal.new(quantity))
-
-    if Decimal.compare(player.cash, cost) != :lt do
-      :ok
     else
-      {:error, :insufficient_cash}
+      :ok
     end
   end
 
-  defp check_short_limit(%MatchState{players: players}, user_id, ticker, quantity) do
-    player = Map.fetch!(players, user_id)
-    current_shorts = Map.get(player.short_positions, ticker, 0)
-    # Limit: no more than 500 shares shorted per ticker
-    if current_shorts + quantity <= 500, do: :ok, else: {:error, :short_limit_exceeded}
+  defp validate_target_if_needed(state, action_type, params) do
+    if action_type in @target_actions do
+      target_user_id = param(params, :target_user_id)
+
+      cond do
+        is_nil(target_user_id) or target_user_id == "" ->
+          {:error, :target_required}
+
+        Map.has_key?(state.players, target_user_id) ->
+          :ok
+
+        true ->
+          {:error, :unknown_target}
+      end
+    else
+      :ok
+    end
   end
+
+  defp validate_quantity_if_needed(action_type, params) do
+    if action_type in @quantity_actions do
+      quantity = param(params, :quantity)
+
+      case parse_positive_int(quantity) do
+        nil -> {:error, :quantity_required}
+        _ -> :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp maybe_put_ticker(acc, params) do
+    case param(params, :ticker) do
+      nil -> acc
+      ticker -> Map.put(acc, :ticker, ticker)
+    end
+  end
+
+  defp maybe_put_target(acc, params) do
+    case param(params, :target_user_id) do
+      nil -> acc
+      target_user_id -> Map.put(acc, :target_user_id, target_user_id)
+    end
+  end
+
+  defp maybe_put_quantity(acc, params) do
+    case parse_positive_int(param(params, :quantity)) do
+      nil -> acc
+      quantity -> Map.put(acc, :quantity, quantity)
+    end
+  end
+
+  defp param(params, key) when is_map(params) do
+    Map.get(params, key) || Map.get(params, Atom.to_string(key))
+  end
+
+  defp parse_positive_int(value) when is_integer(value) and value > 0, do: value
+
+  defp parse_positive_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> int
+      _ -> nil
+    end
+  end
+
+  defp parse_positive_int(_), do: nil
 end

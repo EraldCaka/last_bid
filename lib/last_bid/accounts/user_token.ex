@@ -5,22 +5,19 @@ defmodule LastBid.Accounts.UserToken do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
-  # Session tokens: 60 days
   @session_validity_in_days 60
-  # Password reset tokens: 1 day
   @reset_password_validity_in_days 1
-  # Email confirmation tokens: 7 days
   @confirm_validity_in_days 7
 
   @rand_size 32
   @hash_algorithm :sha256
 
   schema "user_tokens" do
-    field :token, :binary
-    field :context, :string
-    field :sent_to, :string
+    field(:token, :binary)
+    field(:context, :string)
+    field(:sent_to, :string)
 
-    belongs_to :user, LastBid.Accounts.User
+    belongs_to(:user, LastBid.Accounts.User)
 
     timestamps(type: :utc_datetime, updated_at: false)
   end
@@ -52,10 +49,11 @@ defmodule LastBid.Accounts.UserToken do
   @doc "Query for session token, checking validity."
   def verify_session_token_query(token) do
     query =
-      from token in token_and_context_query(token, "session"),
+      from(token in token_and_context_query(token, "session"),
         join: user in assoc(token, :user),
         where: token.inserted_at > ago(@session_validity_in_days, "day"),
         select: user
+      )
 
     {:ok, query}
   end
@@ -68,10 +66,11 @@ defmodule LastBid.Accounts.UserToken do
         days = days_for_context(context)
 
         query =
-          from token in token_and_context_query(hashed_token, context),
+          from(token in token_and_context_query(hashed_token, context),
             join: user in assoc(token, :user),
             where: token.inserted_at > ago(^days, "day"),
             select: {user, token}
+          )
 
         {:ok, query}
 
@@ -85,15 +84,15 @@ defmodule LastBid.Accounts.UserToken do
 
   @doc "Query for all tokens of a given user in a given context."
   def user_and_contexts_query(user, :all) do
-    from t in __MODULE__, where: t.user_id == ^user.id
+    from(t in __MODULE__, where: t.user_id == ^user.id)
   end
 
   def user_and_contexts_query(user, [_ | _] = contexts) do
-    from t in __MODULE__, where: t.user_id == ^user.id and t.context in ^contexts
+    from(t in __MODULE__, where: t.user_id == ^user.id and t.context in ^contexts)
   end
 
   @doc "Query for a token by value and context."
   def token_and_context_query(token, context) do
-    from __MODULE__, where: [token: ^token, context: ^context]
+    from(__MODULE__, where: [token: ^token, context: ^context])
   end
 end

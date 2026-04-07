@@ -6,13 +6,13 @@ defmodule LastBid.MatchEngine.RoundSnapshot do
   @foreign_key_type :binary_id
 
   schema "round_snapshots" do
-    field :round_number, :integer
-    # Public state that can be shown to all players
-    field :public_state, :map
-    # Full state for replay/audit only — never sent to clients
-    field :full_state, :map
+    field(:round_number, :integer)
+    # pulic state that all players can see
+    field(:public_state, :map)
+    # only for audit(private not for players)
+    field(:full_state, :map)
 
-    belongs_to :match, LastBid.Lobby.Match
+    belongs_to(:match, LastBid.Lobby.Match)
 
     timestamps(type: :utc_datetime)
   end

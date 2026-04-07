@@ -8,14 +8,13 @@ defmodule LastBid.MatchEngine.SubmittedAction do
   @action_types ~w(buy short leak hype freeze_liquidity report_to_regulator acquire_stake)
 
   schema "submitted_actions" do
-    field :round_number, :integer
-    field :action_type, :string
-    # JSON payload: e.g. %{ticker: "APEX", quantity: 100}
-    field :payload, :map
-    field :resolved_at, :utc_datetime
+    field(:round_number, :integer)
+    field(:action_type, :string)
+    field(:payload, :map)
+    field(:resolved_at, :utc_datetime)
 
-    belongs_to :match, LastBid.Lobby.Match
-    belongs_to :user, LastBid.Accounts.User
+    belongs_to(:match, LastBid.Lobby.Match)
+    belongs_to(:user, LastBid.Accounts.User)
 
     timestamps(type: :utc_datetime)
   end
@@ -30,7 +29,7 @@ defmodule LastBid.MatchEngine.SubmittedAction do
     |> validate_payload()
   end
 
-  # Reject payloads that are suspiciously large (DoS guard).
+  # DoS guard
   defp validate_payload(changeset) do
     case get_change(changeset, :payload) do
       nil ->

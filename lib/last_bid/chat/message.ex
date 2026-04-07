@@ -9,14 +9,13 @@ defmodule LastBid.Chat.Message do
   @max_content_length 500
 
   schema "chat_messages" do
-    field :content, :string
-    field :message_type, :string, default: "public"
-    field :round_number, :integer
+    field(:content, :string)
+    field(:message_type, :string, default: "public")
+    field(:round_number, :integer)
 
-    belongs_to :match, LastBid.Lobby.Match
-    belongs_to :sender, LastBid.Accounts.User
-    # Only set for whisper messages
-    belongs_to :recipient, LastBid.Accounts.User
+    belongs_to(:match, LastBid.Lobby.Match)
+    belongs_to(:sender, LastBid.Accounts.User)
+    belongs_to(:recipient, LastBid.Accounts.User)
 
     timestamps(type: :utc_datetime)
   end
@@ -55,7 +54,6 @@ defmodule LastBid.Chat.Message do
     |> sanitize_content()
   end
 
-  # Strip HTML tags to prevent XSS in content.
   defp sanitize_content(changeset) do
     case get_change(changeset, :content) do
       nil -> changeset

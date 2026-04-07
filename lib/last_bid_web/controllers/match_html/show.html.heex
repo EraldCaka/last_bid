@@ -219,46 +219,52 @@
           </div>
 
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2" id="action-buttons">
-            <button type="button" class="action-btn" data-action="buy" data-label="Buy Shares" data-desc="Purchase shares. Raises price and builds your portfolio." data-needs-ticker="true" data-needs-quantity="true">
+            <button type="button" class="action-btn" data-action="buy" data-label="Buy Shares" data-desc="Purchase shares. Quantity auto-caps to max cash available." data-needs-ticker="true" data-needs-quantity="true">
               <span class="action-icon">📈</span>
               <span class="action-name">BUY</span>
-              <span class="action-sub">+price</span>
+              <span class="action-sub">max by cash</span>
             </button>
 
-            <button type="button" class="action-btn" data-action="short" data-label="Short Sell" data-desc="Bet against a company. Profit if price falls." data-needs-ticker="true" data-needs-quantity="true">
+            <button type="button" class="action-btn" data-action="sell" data-label="Sell Shares" data-desc="Sell shares you already own. Quantity auto-caps to holdings." data-needs-ticker="true" data-needs-quantity="true">
+              <span class="action-icon">💸</span>
+              <span class="action-name">SELL</span>
+              <span class="action-sub">max by holdings</span>
+            </button>
+
+            <button type="button" class="action-btn" data-action="short" data-label="Short Sell" data-desc="Open a short position and push price down." data-needs-ticker="true" data-needs-quantity="true">
               <span class="action-icon">📉</span>
               <span class="action-name">SHORT</span>
               <span class="action-sub">bear play</span>
             </button>
 
-            <button type="button" class="action-btn" data-action="hype" data-label="Hype" data-desc="Spread positive sentiment. +2% to price." data-needs-ticker="true">
+            <button type="button" class="action-btn" data-action="hype" data-label="Hype" data-desc="Spread positive sentiment. Raises price." data-needs-ticker="true">
               <span class="action-icon">🚀</span>
               <span class="action-name">HYPE</span>
-              <span class="action-sub">+2%</span>
+              <span class="action-sub">pump</span>
             </button>
 
-            <button type="button" class="action-btn" data-action="leak" data-label="Leak Intel" data-desc="Leak damaging info. -3% to target company price." data-needs-ticker="true" data-needs-target="true">
+            <button type="button" class="action-btn" data-action="leak" data-label="Leak Intel" data-desc="Leak damaging info and push a ticker down." data-needs-ticker="true" data-needs-target="true">
               <span class="action-icon">📡</span>
               <span class="action-name">LEAK</span>
-              <span class="action-sub">-3%</span>
+              <span class="action-sub">dump</span>
             </button>
 
-            <button type="button" class="action-btn" data-action="freeze_liquidity" data-label="Freeze Liquidity" data-desc="Lock a rival out for one round. They cannot act." data-needs-target="true">
+            <button type="button" class="action-btn" data-action="freeze_liquidity" data-label="Freeze Liquidity" data-desc="Freeze a rival so they cannot act." data-needs-target="true">
               <span class="action-icon">🧊</span>
               <span class="action-name">FREEZE</span>
               <span class="action-sub">lock rival</span>
             </button>
 
-            <button type="button" class="action-btn" data-action="report_to_regulator" data-label="Report to Regulator" data-desc="Add regulatory heat to a target player." data-needs-target="true">
+            <button type="button" class="action-btn" data-action="report_to_regulator" data-label="Report" data-desc="Increase a rival's regulatory heat. 3 heat freezes them." data-needs-target="true">
               <span class="action-icon">⚖️</span>
               <span class="action-name">REPORT</span>
               <span class="action-sub">+heat</span>
             </button>
 
-            <button type="button" class="action-btn col-span-2" data-action="acquire_stake" data-label="Acquire Stake" data-desc="Large strategic buy. High impact, higher cost." data-needs-ticker="true" data-needs-quantity="true">
+            <button type="button" class="action-btn col-span-2" data-action="acquire_stake" data-label="Acquire Stake" data-desc="Large strategic buy with higher impact and cost." data-needs-ticker="true" data-needs-quantity="true">
               <span class="action-icon">🏦</span>
               <span class="action-name">ACQUIRE STAKE</span>
-              <span class="action-sub">strategic buy</span>
+              <span class="action-sub">big move</span>
             </button>
           </div>
         </div>

@@ -20,7 +20,7 @@ defmodule LastBid.Moderation do
         {:error, :message_too_long}
 
       true ->
-        # TODO: replace with a real moderation API call
+        # TODO: replace with a real moderation api call
         :ok
     end
   end
@@ -54,5 +54,4 @@ defmodule LastBid.Moderation do
   end
 
   def sanitize(_), do: ""
-
 end

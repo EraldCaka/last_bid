@@ -17,7 +17,7 @@ defmodule LastBid.MatchEngine.Runtime.MatchServer do
   alias LastBidWeb.Endpoint
 
   @registry LastBid.MatchEngine.Registry
-  @negotiation_timeout_ms 125_000
+  @negotiation_timeout_ms 10_000
   @news_display_ms 6_000
 
   def start_link(match_id) do
