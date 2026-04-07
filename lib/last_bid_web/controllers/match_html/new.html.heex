@@ -17,7 +17,7 @@
       </div>
       <div>
         <h2 class="font-bold font-mono text-white">CREATE MATCH</h2>
-        <p class="text-xs text-gray-500 mt-0.5">Configure your Dark Pool session</p>
+        <p class="text-xs text-gray-500 mt-0.5">Configure yourLast Bid session</p>
       </div>
     </div>
 
@@ -31,7 +31,7 @@
                id={f[:name].id}
                value={f[:name].value || ""}
                class="terminal-input"
-               placeholder="e.g. Friday Night Dark Pool"
+               placeholder="e.g. Friday NightLast Bid"
                autocomplete="off"
                required />
         <%= for {msg, _} <- Keyword.get_values(f.errors, :name) do %>

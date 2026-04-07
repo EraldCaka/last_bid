@@ -1,16 +1,16 @@
 defmodule LastBidWeb.CoreComponents do
   @moduledoc """
-  Core UI components for Dark Pool.
+  Core UI components forLast Bid.
   """
 
   use Phoenix.Component
   use Gettext, backend: LastBidWeb.Gettext
 
   @doc "Renders a button."
-  attr :type, :string, default: nil
-  attr :class, :string, default: nil
-  attr :rest, :global, include: ~w(disabled form name value)
-  slot :inner_block, required: true
+  attr(:type, :string, default: nil)
+  attr(:class, :string, default: nil)
+  attr(:rest, :global, include: ~w(disabled form name value))
+  slot(:inner_block, required: true)
 
   def button(assigns) do
     ~H"""
@@ -29,14 +29,14 @@ defmodule LastBidWeb.CoreComponents do
   end
 
   @doc "Renders a text input with label."
-  attr :id, :any, default: nil
-  attr :name, :any
-  attr :label, :string, default: nil
-  attr :value, :any
-  attr :type, :string, default: "text"
-  attr :field, Phoenix.HTML.FormField, doc: "a form field struct"
-  attr :errors, :list, default: []
-  attr :rest, :global, include: ~w(autocomplete disabled placeholder required readonly)
+  attr(:id, :any, default: nil)
+  attr(:name, :any)
+  attr(:label, :string, default: nil)
+  attr(:value, :any)
+  attr(:type, :string, default: "text")
+  attr(:field, Phoenix.HTML.FormField, doc: "a form field struct")
+  attr(:errors, :list, default: [])
+  attr(:rest, :global, include: ~w(autocomplete disabled placeholder required readonly))
 
   def input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     assigns
@@ -72,12 +72,12 @@ defmodule LastBidWeb.CoreComponents do
   end
 
   @doc "Renders a simple form."
-  attr :for, :any, required: true
-  attr :as, :atom, default: nil
-  attr :action, :string, default: nil
-  attr :method, :string, default: "post"
-  attr :rest, :global, include: ~w(autocomplete name rel enctype novalidate target multipart)
-  slot :inner_block, required: true
+  attr(:for, :any, required: true)
+  attr(:as, :atom, default: nil)
+  attr(:action, :string, default: nil)
+  attr(:method, :string, default: "post")
+  attr(:rest, :global, include: ~w(autocomplete name rel enctype novalidate target multipart))
+  slot(:inner_block, required: true)
 
   def simple_form(assigns) do
     ~H"""
@@ -95,7 +95,7 @@ defmodule LastBidWeb.CoreComponents do
   end
 
   @doc "Renders flash notices."
-  attr :flash, :map, default: %{}
+  attr(:flash, :map, default: %{})
 
   def flash_group(assigns) do
     ~H"""

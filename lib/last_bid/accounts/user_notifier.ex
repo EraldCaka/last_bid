@@ -19,7 +19,7 @@ defmodule LastBid.Accounts.UserNotifier do
 
   @doc "Delivers a password reset email."
   def deliver_reset_password_instructions(user, url) do
-    deliver(user.email, "Reset your Dark Pool password", """
+    deliver(user.email, "Reset yourLast Bid password", """
     Hi #{user.username},
 
     You can reset your password by visiting the URL below:
@@ -34,10 +34,10 @@ defmodule LastBid.Accounts.UserNotifier do
 
   @doc "Delivers a confirmation email."
   def deliver_confirmation_instructions(user, url) do
-    deliver(user.email, "Confirm your Dark Pool account", """
+    deliver(user.email, "Confirm yourLast Bid account", """
     Hi #{user.username},
 
-    Welcome to Dark Pool! Please confirm your account:
+    Welcome toLast Bid! Please confirm your account:
 
     #{url}
 

@@ -1,6 +1,6 @@
 defmodule LastBid.Telemetry do
   @moduledoc """
-  Telemetry event definitions for the Dark Pool application.
+  Telemetry event definitions for theLast Bid application.
 
   Events emitted:
   - [:last_bid, :match, :started]
@@ -13,12 +13,20 @@ defmodule LastBid.Telemetry do
 
   @doc "Emit a match started event."
   def match_started(match_id, metadata \\ %{}) do
-    :telemetry.execute([:last_bid, :match, :started], %{count: 1}, Map.put(metadata, :match_id, match_id))
+    :telemetry.execute(
+      [:last_bid, :match, :started],
+      %{count: 1},
+      Map.put(metadata, :match_id, match_id)
+    )
   end
 
   @doc "Emit a match finished event."
   def match_finished(match_id, metadata \\ %{}) do
-    :telemetry.execute([:last_bid, :match, :finished], %{count: 1}, Map.put(metadata, :match_id, match_id))
+    :telemetry.execute(
+      [:last_bid, :match, :finished],
+      %{count: 1},
+      Map.put(metadata, :match_id, match_id)
+    )
   end
 
   @doc "Emit a round phase changed event."
@@ -56,7 +64,10 @@ defmodule LastBid.Telemetry do
     :telemetry.execute(
       [:last_bid, :chat, :message_sent],
       %{count: 1},
-      metadata |> Map.put(:match_id, match_id) |> Map.put(:user_id, user_id) |> Map.put(:type, type)
+      metadata
+      |> Map.put(:match_id, match_id)
+      |> Map.put(:user_id, user_id)
+      |> Map.put(:type, type)
     )
   end
 end

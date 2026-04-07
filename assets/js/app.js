@@ -1,4 +1,4 @@
-// Dark Pool — realtime client
+//Last Bid — realtime client
 import { Socket } from "phoenix";
 
 // ─── Boot ───────────────────────────────────────────────────────────
@@ -696,7 +696,11 @@ class MatchManager {
   _applyOnlineState() {
     document.querySelectorAll("[data-player-id]").forEach((row) => {
       const dot = row.querySelector(".presence-dot");
-      if (dot) dot.classList.toggle("offline", !this.onlineUsers.has(row.dataset.playerId));
+      if (dot)
+        dot.classList.toggle(
+          "offline",
+          !this.onlineUsers.has(row.dataset.playerId),
+        );
     });
   }
 

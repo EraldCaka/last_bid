@@ -1,6 +1,6 @@
 defmodule LastBid do
   @moduledoc """
-  LastBid — Dark Pool multiplayer market-warfare game.
+  LastBid —Last Bid multiplayer market-warfare game.
 
   This module is the OTP application entry point alias.
   See `LastBid.Application` for the supervision tree.
