@@ -1,4 +1,4 @@
-#Last Bid
+# Last Bid
 
 A server-authoritative multiplayer market-warfare game built with Elixir/Phoenix.
 
